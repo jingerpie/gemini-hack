@@ -6,9 +6,12 @@ import {
 } from "@gemini-hack/ui/components/input-group";
 import { Kbd } from "@gemini-hack/ui/components/kbd";
 import { cn } from "@gemini-hack/ui/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 import { CornerDownLeft, Mic } from "lucide-react";
 import { type MutableRefObject, useEffect, useRef, useState } from "react";
 import type { ChipState } from "../App";
+import { healthQuery } from "../lib/queries";
+import type { HealthResponse } from "../types";
 import { type Agent, Dot } from "./parts";
 
 type Props = {
@@ -19,7 +22,10 @@ type Props = {
 	onSend(text: string): void;
 };
 
-const LEGEND: { agent: Agent; label: string; title: string }[] = [
+type LegendItem = { agent: Agent; label: string; title: string };
+
+// Shown until /api/health answers (or when the server is unreachable).
+const FALLBACK_LEGEND: LegendItem[] = [
 	{
 		agent: "patch",
 		label: "orchestrator · hydrogen",
@@ -47,8 +53,44 @@ const LEGEND: { agent: Agent; label: string; title: string }[] = [
 	},
 ];
 
+/** "gemini-4-hydrogen" -> "hydrogen", "gemini-nano-banana-2.1" -> "nano-banana-2.1" */
+const short = (model: string) => model.replace(/^gemini-(\d+(\.\d+)?-)?/, "");
+
+function legendFrom(h: HealthResponse | undefined): LegendItem[] {
+	if (!h) return FALLBACK_LEGEND;
+	const m = h.models;
+	return [
+		{
+			agent: "patch",
+			label: `orchestrator · ${short(m.patch)}`,
+			title: `orchestrator · ${m.patch}`,
+		},
+		{
+			agent: "designer",
+			label: `designer · ${short(m.designer)}`,
+			title: `designer · ${m.designer} (whole-room requests)`,
+		},
+		{
+			agent: "asset",
+			label: "3D agent",
+			title: `3D models · managed agent ${m.asset.AGENT}, direct ${m.asset.DIRECT_MODEL}`,
+		},
+		{
+			agent: "decal",
+			label: `image · ${short(m.image)}`,
+			title: `images and photoreal renders · ${m.image}`,
+		},
+		{
+			agent: "source",
+			label: "shopping agent",
+			title: `sourcing agent · ${m.source.agent} + Google Search, direct ${m.source.direct}`,
+		},
+	];
+}
+
 export function Dock({ chip, listening, levelRef, onToggle, onSend }: Props) {
 	const [text, setText] = useState("");
+	const legend = legendFrom(useQuery(healthQuery).data);
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
 			<form
@@ -109,7 +151,7 @@ export function Dock({ chip, listening, levelRef, onToggle, onSend }: Props) {
 			</Button>
 
 			<div className="text-muted-foreground flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-[11px]">
-				{LEGEND.map((l) => (
+				{legend.map((l) => (
 					<span
 						key={l.agent}
 						title={l.title}

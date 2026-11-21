@@ -236,6 +236,20 @@ export type ChooseResponse = {
 	ms: number;
 };
 
+// GET /api/health -> server status and the models it is configured to use (env overrides included)
+export type HealthResponse = {
+	ok: boolean;
+	models: {
+		patch: string;
+		designer: string;
+		asset: { AGENT: string; DIRECT_MODEL: string };
+		image: string;
+		live: string;
+		decision: string;
+		source: { agent: string; direct: string };
+	};
+};
+
 // GET /api/catalog -> the shop catalog (100 real listings, each with a pre-built 3D model)
 export type CatalogItem = Product & {
 	catalogId: string;

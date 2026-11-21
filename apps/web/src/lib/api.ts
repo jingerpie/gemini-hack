@@ -171,7 +171,10 @@ async function postJson<T>(
 	return (await res.json()) as T;
 }
 
-async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function getJson<T>(
+	path: string,
+	signal?: AbortSignal,
+): Promise<T> {
 	const res = await fetch(path, { signal });
 	if (!res.ok) {
 		if (res.status === 404 || res.status === 405)
