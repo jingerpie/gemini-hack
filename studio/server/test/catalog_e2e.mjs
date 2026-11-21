@@ -5,7 +5,7 @@ const scene = { room: { width: 6, depth: 5, height: 2.8 }, surfaces: {
   wall_back: { id: 'wall_back', color: '#e8e4dc' }, wall_left: { id: 'wall_left', color: '#e8e4dc' }, wall_right: { id: 'wall_right', color: '#e8e4dc' },
   floor: { id: 'floor', color: '#a0703c' }, ceiling: { id: 'ceiling', color: '#f5f5f5' } }, objects: [], decals: [] };
 const history = [];
-const U = ['add a sofa', 'add a desk and an office chair', 'add a Christmas tree', 'add a floor lamp next to the sofa', 'swap the sofa for a cheaper one', 'design this as a cozy reading room'];
+const U = process.argv.slice(3).length ? process.argv.slice(3) : ['add a sofa', 'add a desk and an office chair', 'add a Christmas tree', 'add a floor lamp next to the sofa', 'swap the sofa for a cheaper one', 'design this as a cozy reading room'];
 for (const u of U) {
   const t0 = Date.now();
   const r = await fetch(`${BASE}/api/patch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scene, history, utterance: u }) });

@@ -20,7 +20,14 @@ export const PATCH_MODEL = process.env.PATCH_MODEL || 'gemini-4-hydrogen';
 // Shop MCP lookup on add (shop_query, options cards) is kept on disk but OFF unless SHOP_ON_ADD=1.
 export const SHOP_ON_ADD = process.env.SHOP_ON_ADD === '1';
 const CATALOG_BLOCK = CATALOG.catalogPromptBlock?.() || '';
-const SYSTEM = fs.readFileSync(path.join(SERVER_DIR, 'prompts', 'orchestrator.txt'), 'utf8') + (CATALOG_BLOCK ? `\n\n${CATALOG_BLOCK}` : '');
+const ORCH_TXT = fs.readFileSync(path.join(SERVER_DIR, 'prompts', 'orchestrator.txt'), 'utf8');
+// Fast path: no item list (it tripled Hydrogen latency); the model names a kind + the user's words, the server picks.
+export const CATALOG_KINDS = [...new Set((CATALOG.loadCatalog?.() || []).map(i => i.kind))];
+const KINDS_TEXT = CATALOG_KINDS.length ? `SHOP KINDS (ready 3D models, instant): ${CATALOG_KINDS.join(', ')}.
+- For one of these kinds set catalog_kind and catalog_query (the user's own words for it: colour, material, style, size, "cheap"); still give position, rotation_y_deg and a sensible size. Anything else: no catalog_kind, a custom object as before.
+- Swaps ("a different one", "cheaper", "in grey", "under 300") = update_object with catalog_kind + catalog_query (+ max_price).
+- A plain "chair": at a desk = office-chair, at a dining table = dining-chair, otherwise armchair. "Lamp" = floor-lamp.` : '';
+const SYSTEM = ORCH_TXT + (KINDS_TEXT ? `\n\n${KINDS_TEXT}` : '');
 
 // ---------- tool declarations ----------
 const num = { type: 'number' };
@@ -54,13 +61,13 @@ const decalProps = {
   width: num, height: num,
   prompt: { type: 'string', description: 'complete self-contained image-generation prompt for a flat front-on image filling the frame' },
 };
-const TOOLS = [
+const toolsWith = P => [
   { name: 'add_object', description: 'Add a new object (furniture/decor = shape custom with description).',
-    parameters: { type: 'object', properties: { id: { type: 'string', description: 'new unique id, e.g. throne1' }, ...objectProps },
+    parameters: { type: 'object', properties: { id: { type: 'string', description: 'new unique id, e.g. throne1' }, ...P },
       required: ['id', 'name', 'shape', 'size', 'position', 'rotation_y_deg', 'color', 'parent'] } },
   { name: 'update_object', description: 'Change fields of an existing object. Pass only changed fields as absolute values. A new description on a custom object rebuilds its model.',
     parameters: { type: 'object', properties: { id: { type: 'string', description: 'id of an existing object' },
-      changes: { type: 'object', properties: objectProps, description: 'only the fields that change' } }, required: ['id', 'changes'] } },
+      changes: { type: 'object', properties: P, description: 'only the fields that change' } }, required: ['id', 'changes'] } },
   { name: 'remove_object', description: 'Delete an object.', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   { name: 'set_surface', description: 'Change the color and/or finish of a wall, the floor or the ceiling. "The walls" = three calls.',
     parameters: { type: 'object', properties: { id: { type: 'string', enum: SURFACES }, color: { type: 'string', description: 'hex like #1a1a1a' }, material }, required: ['id'] } },
@@ -72,6 +79,12 @@ const TOOLS = [
   { name: 'remove_decal', description: 'Delete a decal.', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   { name: 'say', description: 'Short spoken confirmation or reply (max 10 words).', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } },
 ];
+const { catalog_id: _designerOnly, ...FAST_BASE } = objectProps;
+const FAST_PROPS = { ...FAST_BASE, ...(CATALOG_KINDS.length && {
+  catalog_kind: { type: 'string', enum: CATALOG_KINDS, description: 'SHOP KINDS item: which kind; omit for anything else' },
+  catalog_query: { type: 'string', description: "the user's own words for the item (colour, material, style, size, cheap)" },
+  max_price: { type: 'number', description: 'optional price cap in USD ("under 300" = 300)' } }) };
+const TOOLS = toolsWith(FAST_PROPS);
 
 // ---------- sanitizing ----------
 const r2 = v => Math.round(v * 100) / 100;
@@ -137,6 +150,26 @@ const CATALOG_ROT_FIX = { 'coffee-table/01-reclaimed-wood-coffee-table': 90 }; /
 function rotFix(o, prevCatalogId) {
   const add = CATALOG_ROT_FIX[o.product?.catalogId] || 0, undo = CATALOG_ROT_FIX[prevCatalogId] || 0;
   if (add - undo) o.rotation_y_deg = r2((o.rotation_y_deg || 0) + add - undo);
+}
+
+// Fast path: the model names catalog_kind + catalog_query; the server picks the item. On a swap the current item is
+// excluded, and "cheaper"/"pricier" words only accept a lower/higher price than the current one.
+const priceOf = p => +String(p?.price || '').replace(/[^\d.]/g, '') || 0;
+function kindPick(a, cur, say) {
+  const kind = a.catalog_kind;
+  if (!kind || !CATALOG_KINDS.includes(kind)) return null;
+  const q = String(a.catalog_query || a.name || kind);
+  const curId = cur?.product?.catalogId, curPrice = cur?.product ? priceOf(cur.product) : 0;
+  const cheaper = curPrice && /\b(cheap|cheaper|cheapest|less expensive|budget|affordable|lower price)\b/i.test(q);
+  const pricier = curPrice && /\b(nicer|pricier|premium|more expensive|luxur|high[- ]end|fancier)\b/i.test(q);
+  let list = pickCatalog(q, { kind, maxPrice: fin(a.max_price, undefined), limit: 20 }).filter(i => i.catalogId !== curId);
+  // matcher gap: words like "cheaper"/"a different one" can leave a kind with no scored match; fall back to the kind alone
+  if (!list.length) list = pickCatalog(kind.replace(/-/g, ' '), { kind, maxPrice: fin(a.max_price, undefined), limit: 20 }).filter(i => i.catalogId !== curId);
+  if (cheaper) list = list.filter(i => priceOf(i) < curPrice).sort((x, y) => priceOf(y) - priceOf(x));
+  if (pricier) list = list.filter(i => priceOf(i) > curPrice).sort((x, y) => priceOf(x) - priceOf(y));
+  const best = list[0] && catalogObject(list[0].catalogId);
+  if (!best && cur && (cheaper || pricier)) say.push(`!That is already the ${cheaper ? 'cheapest' : 'priciest'} ${kind.replace(/-/g, ' ')} at ${cur.product.price}.`);
+  return best || null;
 }
 
 // Catalog product fields for a model-given catalog id. Unknown id -> best pickCatalog match on the name, else null (made-up).
@@ -217,7 +250,7 @@ export function buildOps(calls, scene) {
       };
       const m = cleanMaterial(a.material); if (m) o.material = m;
       if (shape === 'custom') { o.description = String(a.description || a.name || id); o.status = 'building'; }
-      const cat = catalogFor(a.catalog_id, a.name, dropped);
+      const cat = catalogFor(a.catalog_id, a.name, dropped) || kindPick(a, null, say);
       if (cat) { const p = reanchor(o, cat.size, room); Object.assign(o, cat, { size: { ...cat.size }, product: { ...cat.product }, position: p, shape: 'custom', status: 'building' }); rotFix(o); }
       if (SHOP_ON_ADD && !cat && shape === 'custom' && typeof a.shop_query === 'string' && a.shop_query.trim())
         shopReqs.push({ id, query: a.shop_query.trim().slice(0, 120), maxPrice: fin(a.max_price, undefined), name: o.name, description: o.description, color: o.color });
@@ -242,7 +275,7 @@ export function buildOps(calls, scene) {
       const swap = SHOP_ON_ADD && typeof ch.shop_query === 'string' && ch.shop_query.trim() && (cur.shape === 'custom' || c.shape === 'custom');
       if (swap) shopReqs.push({ id: cur.id, query: ch.shop_query.trim().slice(0, 120), maxPrice: fin(ch.max_price, undefined), name: c.name || cur.name,
         description: (typeof ch.description === 'string' && ch.description.trim()) || cur.description, color: c.color || cur.color, exclude: cur.product, update: true });
-      const cat = ch.catalog_id ? catalogFor(ch.catalog_id, ch.name || cur.name, dropped) : null;
+      const cat = ch.catalog_id ? catalogFor(ch.catalog_id, ch.name || cur.name, dropped) : ch.catalog_kind ? kindPick(ch, cur, say) : null;
       if (cat && cat.product.catalogId !== cur.product?.catalogId) {
         const base = { ...cur, ...(c.position && { position: c.position }), ...(c.rotation_y_deg !== undefined && { rotation_y_deg: c.rotation_y_deg }) };
         Object.assign(c, cat, { size: { ...cat.size }, product: { ...cat.product }, position: reanchor(base, cat.size, room), glb: null });
@@ -361,7 +394,8 @@ export function buildOps(calls, scene) {
       if (building && d) { seen.add('d' + op.id); jobs.unshift({ kind: 'decal', decalId: d.id, prompt: d.prompt, width: d.width, height: d.height }); }
     }
   }
-  return { ops, jobs, say: say.join(' ').trim(), dropped, shopReqs };
+  const forced = say.filter(t => t.startsWith('!')).map(t => t.slice(1)); // server-side answers win over the model's say
+  return { ops, jobs, say: (forced.length ? forced : say).join(' ').trim(), dropped, shopReqs };
 }
 
 // ---------- designer path ----------
@@ -372,9 +406,9 @@ const DESIGNER_THINKING = { 'gemini-4-argon': 'low', 'gemini-4-neon': 'low', 'ge
 const ASK_DESIGNER = { name: 'ask_designer',
   description: 'Hand the request to the senior interior designer, who plans a complete coherent set of edits. Use for whole-room designs/themes, a style or mood for the room as a whole, and open-ended judgements ("this feels empty", "what would make it better?"). Call it ALONE: no other calls, no say.',
   parameters: { type: 'object', properties: { brief: { type: 'string', description: "the user's request restated as a clear design brief, including constraints from the utterance and history (things to keep, colors, mood)" } }, required: ['brief'] } };
-const DESIGNER_TOOLS = TOOLS.map(t => t.name !== 'say' ? t : { ...t, description: 'One or two short sentences (max 40 words), spoken to the user, explaining the design idea.' });
+const DESIGNER_TOOLS = toolsWith(objectProps).map(t => t.name !== 'say' ? t : { ...t, description: 'One or two short sentences (max 40 words), spoken to the user, explaining the design idea.' });
 const DESIGNER_SYSTEM = fs.readFileSync(path.join(SERVER_DIR, 'prompts', 'designer.txt'), 'utf8')
-  .replace('{{SHARED}}', SYSTEM.slice(SYSTEM.indexOf('COORDINATES'), SYSTEM.indexOf('BEHAVIOR')).trim()) + (CATALOG_BLOCK ? `\n\n${CATALOG_BLOCK}` : '');
+  .replace('{{SHARED}}', ORCH_TXT.slice(ORCH_TXT.indexOf('COORDINATES'), ORCH_TXT.indexOf('BEHAVIOR')).trim()) + (CATALOG_BLOCK ? `\n\n${CATALOG_BLOCK}` : '');
 const declare = list => [{ functionDeclarations: list.map(t => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }];
 const callsOf = js => (js.candidates?.[0]?.content?.parts || []).filter(p => p.functionCall).map(p => ({ name: p.functionCall.name, args: p.functionCall.args || {} }));
 function imagePart(image) {
