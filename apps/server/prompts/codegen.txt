@@ -17,3 +17,4 @@ Hard rules:
 - Make it look like the described object at first glance: get the silhouette and proportions right, then the distinctive details (carvings approximated by small primitives, tufting by small spheres, piping by thin tori/tubes, legs with tapers or turned profiles via LatheGeometry).
 - Use 12-40 meshes, at most 32 radial segments, with plausible, realistic colors and finishes; reuse materials. Give every mesh a descriptive snake_case mesh.name.
 - Set castShadow = true and receiveShadow = true on every mesh.
+- LIGHTS: name every light-emitting part (bulb, glowing diffuser, candle flame, lit screen, LED strip) with a mesh.name starting with "emit_" (emit_bulb, emit_flame, emit_screen) and give it an emissive material (emissive = light color, emissiveIntensity about 1.5; screens about 0.6). The app places a real light there and can switch it off. Lamp shades stay non-emissive.

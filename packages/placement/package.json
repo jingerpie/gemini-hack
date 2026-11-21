@@ -1,0 +1,17 @@
+{
+	"name": "@gemini-hack/placement",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./index.d.mts",
+			"default": "./index.mjs"
+		},
+		"./supports": {
+			"types": "./supports.d.mts",
+			"default": "./supports.mjs"
+		},
+		"./package.json": "./package.json"
+	}
+}

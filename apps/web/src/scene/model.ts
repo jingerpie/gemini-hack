@@ -15,6 +15,20 @@ export type MatRecord = {
 	transparent: boolean;
 	emissive: THREE.Color;
 	emissiveIntensity: number;
+	emitter?: boolean; // belongs to a light-emitting part: dark when the object's light is off
+};
+
+/**
+ * A light-emitting part found in the generated code before merging (meshes named emit_*, or any clearly emissive
+ * mesh as a fallback for models made before the naming rule). Raw model coordinates, like `rawBox`.
+ */
+export type EmitterRole = "bulb" | "flame" | "screen" | "glow";
+export type Emitter = {
+	role: EmitterRole;
+	named: boolean;
+	pos: THREE.Vector3;
+	color: THREE.Color;
+	size: number;
 };
 
 export type PreparedModel = {
@@ -23,6 +37,7 @@ export type PreparedModel = {
 	records: MatRecord[];
 	meshCount: number; // meshes in the generated code
 	drawCount: number; // meshes after merging
+	emitters: Emitter[];
 };
 
 export type EvalResult =
@@ -185,11 +200,49 @@ function flipWinding(g: THREE.BufferGeometry) {
 	}
 }
 
+const _lum = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+/** Name of the mesh or its nearest named ancestor inside the generated root (Gemini sometimes names the group). */
+function partName(o: THREE.Object3D, root: THREE.Object3D): string {
+	for (let c: THREE.Object3D | null = o; c && c !== root.parent; c = c.parent)
+		if (c.name) return c.name;
+	return "";
+}
+function emitterOf(
+	mesh: THREE.Mesh,
+	root: THREE.Object3D,
+): { role: EmitterRole; named: boolean } | null {
+	const name = partName(mesh, root).toLowerCase();
+	const m = /(?:^|[^a-z])emit_?([a-z]*)/.exec(name);
+	if (m) {
+		const r = m[1];
+		const role: EmitterRole = /screen|display|monitor|tv/.test(r)
+			? "screen"
+			: /flame|fire|wick/.test(r)
+				? "flame"
+				: "bulb";
+		return { role, named: true };
+	}
+	const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+	const st = mats[0] as StdMat | undefined;
+	if (
+		st?.isMeshStandardMaterial &&
+		st.emissive &&
+		_lum(st.emissive) * (st.emissiveIntensity ?? 1) > 0.25
+	)
+		return { role: "glow", named: false };
+	return null;
+}
+
 function prepare(root: THREE.Object3D): PreparedModel {
 	const holder = new THREE.Group();
 	holder.add(root);
 	holder.updateMatrixWorld(true);
 
+	const emitters: Emitter[] = [];
+	const emitMats = new Set<THREE.Material>();
+	const emitClone = new Map<THREE.Material, THREE.Material>();
+	const _b = new THREE.Box3();
+	const _v = new THREE.Vector3();
 	const matCache = new Map<THREE.Material, THREE.Material>();
 	const buckets = new Map<
 		string,
@@ -209,9 +262,33 @@ function prepare(root: THREE.Object3D): PreparedModel {
 				(mesh as THREE.InstancedMesh).isInstancedMesh ||
 				(mesh as THREE.SkinnedMesh).isSkinnedMesh ||
 				Object.keys(geo.morphAttributes || {}).length > 0;
-			const mats = Array.isArray(mesh.material)
+			let mats = Array.isArray(mesh.material)
 				? mesh.material.map((m) => toStandard(m, matCache))
 				: toStandard(mesh.material, matCache);
+			const em = emitterOf(mesh, root);
+			if (em && !Array.isArray(mats)) {
+				// Emitters get their own material instance so switching the light off never darkens other parts.
+				const src = mats;
+				let own = emitClone.get(src);
+				if (!own) emitClone.set(src, (own = src.clone()));
+				mats = own;
+				emitMats.add(own);
+				_b.setFromObject(mesh);
+				if (!_b.isEmpty()) {
+					const st = own as StdMat;
+					const col =
+						st.emissive && _lum(st.emissive) > 0.02
+							? st.emissive.clone()
+							: new THREE.Color(0xffd9a0);
+					emitters.push({
+						role: em.role,
+						named: em.named,
+						pos: _b.getCenter(new THREE.Vector3()),
+						color: col,
+						size: _b.getSize(_v).length(),
+					});
+				}
+			}
 			if (isSpecial || Array.isArray(mats)) {
 				const c = mesh.clone(false) as THREE.Mesh;
 				c.material = mats;
@@ -243,7 +320,9 @@ function prepare(root: THREE.Object3D): PreparedModel {
 				)
 					throw new Error("odd attrs");
 				if (mesh.matrixWorld.determinant() < 0) flipWinding(g);
-				const key = matSignature(mats);
+				const key =
+					(emitMats.has(mats as THREE.Material) ? "emit|" : "") +
+					matSignature(mats); // emitters never merge with other parts
 				let b = buckets.get(key);
 				if (!b) buckets.set(key, (b = { mat: mats, geos: [] }));
 				b.geos.push(g);
@@ -337,10 +416,11 @@ function prepare(root: THREE.Object3D): PreparedModel {
 				transparent: s.transparent,
 				emissive: s.emissive.clone(),
 				emissiveIntensity: s.emissiveIntensity,
+				...(emitMats.has(s) && { emitter: true }),
 			});
 		}
 	});
-	return { group, rawBox, records, meshCount, drawCount };
+	return { group, rawBox, records, meshCount, drawCount, emitters };
 }
 
 export type Fit = { scale: THREE.Vector3; offset: THREE.Vector3 };
@@ -425,7 +505,12 @@ export function modelTargets(
 			metalness: m.metalness ?? r.metalness,
 			opacity: r.opacity * (m.opacity ?? 1),
 			emissive: emissive ? emissive.clone() : r.emissive.clone(),
-			emissiveIntensity: emissive ? 0.8 : r.emissiveIntensity,
+			emissiveIntensity:
+				r.emitter && obj.light_on === false
+					? 0
+					: emissive
+						? 0.8
+						: r.emissiveIntensity,
 		};
 	});
 }

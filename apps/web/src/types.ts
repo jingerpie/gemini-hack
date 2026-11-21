@@ -30,11 +30,16 @@ export type SceneObject = {
 	rotation_y_deg: number;
 	color: string; // "#rrggbb"
 	material?: Material;
-	parent: string; // id of the support it rests on, or ""
+	parent: string; // id of the support it rests on, or "". Objects on a support follow it when it moves, turns or is removed.
 	// shape === "custom" only: a detailed model is generated in the background from this text.
 	description?: string;
 	// shape === "custom" only: "building" shows the placeholder, "ready" shows generated geometry, "failed" keeps placeholder.
 	status?: "building" | "ready" | "failed";
+	// Lights and glowing parts (lamp bulbs, candle flames, screens) are on unless this is false. "Turn off the lamp" = false.
+	light_on?: boolean;
+	// Hung on a wall (back on that wall, facing into the room, rotation set by the wall) or hanging from the ceiling (top at
+	// the ceiling). Mounted objects have parent "". Unset = stands on the floor or on its parent.
+	mount?: "wall_back" | "wall_left" | "wall_right" | "ceiling";
 	// Set when the object IS a real product: found live through Shop MCP (buyable; `product.similar` unset) or taken
 	// from the pre-built catalog (packages/catalog: demo listings, not buyable; `product.similar` set).
 	product?: Product;

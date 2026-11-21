@@ -19,6 +19,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@gemini-hack/catalog": "workspace:*",
+        "@gemini-hack/placement": "workspace:*",
         "@google/genai": "^3.6.1",
         "@hono/node-server": "^2.1.11",
         "hono": "^4.13.19",
@@ -31,6 +32,7 @@
       "dependencies": {
         "@fontsource-variable/inter": "^5.3.0",
         "@gemini-hack/catalog": "workspace:*",
+        "@gemini-hack/placement": "workspace:*",
         "@gemini-hack/ui": "workspace:*",
         "@google/genai": "^3.6.1",
         "@tanstack/react-query": "^5.108.2",
@@ -59,6 +61,10 @@
     },
     "packages/config": {
       "name": "@gemini-hack/config",
+      "version": "0.0.0",
+    },
+    "packages/placement": {
+      "name": "@gemini-hack/placement",
       "version": "0.0.0",
     },
     "packages/ui": {
@@ -260,6 +266,8 @@
     "@gemini-hack/catalog": ["@gemini-hack/catalog@workspace:packages/catalog"],
 
     "@gemini-hack/config": ["@gemini-hack/config@workspace:packages/config"],
+
+    "@gemini-hack/placement": ["@gemini-hack/placement@workspace:packages/placement"],
 
     "@gemini-hack/ui": ["@gemini-hack/ui@workspace:packages/ui"],
 
