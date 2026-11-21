@@ -1,6 +1,6 @@
 // Catalog check, no model calls: node apps/server/test/catalog_test.mjs [--block] [--table]
 // Validates every catalog model, prints the size table, the orchestrator prompt block and pickCatalog results.
-import http from "node:http";
+import { Hono } from "hono";
 import {
 	catalogAssetEvent,
 	catalogCode,
@@ -9,11 +9,11 @@ import {
 	catalogRecords,
 	catalogStats,
 	catalogWarnings,
-	handleCatalog,
 	loadCatalog,
 	pickCatalog,
 	validateCatalog,
 } from "../catalog.mjs";
+import { catalogRoutes } from "../routes/catalog.mjs";
 
 const t0 = Date.now();
 const items = loadCatalog();
@@ -120,22 +120,13 @@ console.log(
 	JSON.stringify(catalogObject("sofa/03-junction")),
 );
 
-// GET /api/catalog through a throwaway server on a random port
-const srv = http.createServer((req, res) => {
-	const url = new URL(req.url, "http://x");
-	if (!handleCatalog(req, res, url)) {
-		res.writeHead(404);
-		res.end("no");
-	}
-});
-await new Promise((r) => srv.listen(0, r));
-const port = srv.address().port;
-const j = await (await fetch(`http://localhost:${port}/api/catalog`)).json();
-const other = await fetch(`http://localhost:${port}/api/other`);
+// GET /api/catalog through the route module, in process
+const routes = new Hono().route("/api", catalogRoutes);
+const j = await (await routes.request("/api/catalog")).json();
+const other = await routes.request("/api/other");
 console.log(
 	`  GET /api/catalog -> ${j.items.length} items, first: ${JSON.stringify(j.items[0])}; other route -> ${other.status}`,
 );
-srv.close();
 
 let fail = 0;
 const check = (c, msg) => {

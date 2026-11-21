@@ -11,7 +11,7 @@
 //   - URLs (product url, image url, continue_url) are passed through exactly as returned, never rebuilt.
 //   - one checkout per merchant; the shopper pays on the merchant's page (continue_url). We never complete a checkout.
 //
-// Exports: shopSearch, shopPick3d, shopSimilar, shopFindCatalogItem, shopCheckout, handleShop (GET /api/shop/search, POST /api/checkout).
+// Exports: shopSearch, shopPick3d, shopSimilar, shopFindCatalogItem, shopCheckout (HTTP routes in routes/shop.mjs).
 
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -1233,92 +1233,6 @@ export async function shopCheckout(items, { signal } = {}) {
 		}),
 	);
 	return { checkouts, failed, ms: Date.now() - t0 };
-}
-
-// ---------- HTTP ----------
-
-const CORS = {
-	"Access-Control-Allow-Origin": "*",
-	"Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-	"Access-Control-Allow-Headers": "*",
-};
-async function readJson(req, limit = 1024 * 1024) {
-	const chunks = [];
-	let n = 0;
-	for await (const c of req) {
-		n += c.length;
-		if (n > limit) {
-			const e = new Error("body too large");
-			e.status = 413;
-			throw e;
-		}
-		chunks.push(c);
-	}
-	if (!n) return {};
-	try {
-		return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-	} catch {
-		const e = new Error("invalid JSON body");
-		e.status = 400;
-		throw e;
-	}
-}
-function json(res, status, obj) {
-	if (res.headersSent) return;
-	res.writeHead(status, {
-		...CORS,
-		"Content-Type": "application/json",
-		"Cache-Control": "no-store",
-	});
-	res.end(JSON.stringify(obj));
-}
-
-/**
- * GET  /api/shop/search?q=...&limit=3&model=1   -> ShopSearchResponse { products, ms }
- * POST /api/checkout  (CheckoutRequest)          -> CheckoutResponse
- * Returns false for any other path (so index.mjs can fall through), true once it has answered.
- */
-export async function handleShop(req, res, url, note = () => {}) {
-	const route = `${req.method} ${url.pathname}`;
-	if (route === "GET /api/shop/search") {
-		const q = url.searchParams.get("q") || "";
-		if (!q.trim()) {
-			json(res, 400, { error: "q required" });
-			return true;
-		}
-		try {
-			const out = await shopSearch(q, {
-				limit: +(url.searchParams.get("limit") || 3),
-				model3d: url.searchParams.get("model") === "1",
-			});
-			note(
-				`"${q.slice(0, 50)}" -> ${out.products.length} products ${out.ms}ms`,
-			);
-			json(res, 200, { products: out.products, ms: out.ms });
-		} catch (e) {
-			note(`"${q.slice(0, 50)}" -> ERROR ${e.code || ""} ${e.message}`);
-			json(res, e.code === "bad_query" ? 400 : 502, {
-				error: e.message,
-				code: e.code,
-			});
-		}
-		return true;
-	}
-	if (route === "POST /api/checkout") {
-		const body = await readJson(req);
-		if (!Array.isArray(body.items) || !body.items.length) {
-			json(res, 400, { error: "items required" });
-			return true;
-		}
-		const out = await shopCheckout(body.items);
-		// Never log continue_url: it carries the checkout's access key (checkout.md).
-		note(
-			`${body.items.length} items -> ${out.checkouts.length} checkouts (${out.checkouts.map((c) => c.store).join(", ")}), ${out.failed.length} failed, ${out.ms}ms`,
-		);
-		json(res, 200, out);
-		return true;
-	}
-	return false;
 }
 
 export const shopSession = session; // for /api/health or debugging

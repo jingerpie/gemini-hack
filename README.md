@@ -5,7 +5,7 @@ Bun workspace with Turborepo.
 ```
 apps/
   web/       front end: Vite, React, three.js (port 5273)
-  server/    back end: Node (port 8787)
+  server/    back end: Hono on Node (port 8787)
 packages/
   catalog/   pre-built shop catalog: listings, images, build(THREE) models
   ui/        shared shadcn/ui components

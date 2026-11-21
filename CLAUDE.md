@@ -23,7 +23,7 @@ Commits and pull requests are authored by the human committer alone. Never add C
 Bun workspace with Turborepo.
 
 - `apps/web`: front end (Vite, React, three.js), port 5273, proxies `/api` to the server.
-- `apps/server`: back end (Node, plain `node:http`), port 8787. Prompts in `apps/server/prompts/`, test and bench scripts in `apps/server/test/`.
+- `apps/server`: back end (Hono on Node via `@hono/node-server`), port 8787. Routes in `app.mjs` and `routes/`, shared HTTP helpers in `http.mjs`. Prompts in `apps/server/prompts/`, test and bench scripts in `apps/server/test/`.
 - `packages/catalog` (`@gemini-hack/catalog`): pre-built shop catalog data (catalog.json, product images, build(THREE) model files).
 - `packages/ui` (`@gemini-hack/ui`): shared shadcn/ui components. `packages/config`: shared tsconfig base.
 - `scripts/`: dev utilities (`gemini-agent.mjs` runs the Gemini CLI with the repo-root key).

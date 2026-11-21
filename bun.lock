@@ -20,6 +20,8 @@
       "dependencies": {
         "@gemini-hack/catalog": "workspace:*",
         "@google/genai": "^3.6.1",
+        "@hono/node-server": "^2.1.11",
+        "hono": "^4.13.19",
         "three": "^0.170.0",
       },
     },
@@ -252,6 +254,8 @@
     "@gemini-hack/ui": ["@gemini-hack/ui@workspace:packages/ui"],
 
     "@google/genai": ["@google/genai@3.6.1", "", { "dependencies": { "google-auth-library": "^10.3.0", "p-retry": "^4.6.2", "protobufjs": "^7.6.5", "ws": "^8.21.0" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.25.2" }, "optionalPeers": ["@modelcontextprotocol/sdk"] }, "sha512-DQIkZkl+VoZc+RUSaJ41vRuywjQDpP0t/oUf5/ddQhNW6JsPjVULW2EgHmuJ1mrr6ACtrmUdPlqtNXF1yfKySg=="],
+
+    "@hono/node-server": ["@hono/node-server@2.1.11", "", { "peerDependencies": { "hono": "^4 || ^5.0.0-0" } }, "sha512-KzKz9vl4vvr1vgLHamj+g5uonbrj5NwAdO3yzOS6cd2HjALVeOgTgeZOyAzNxejbkfOOPIcvuf/Tg8l1pEFLog=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 
@@ -584,6 +588,8 @@
     "google-logging-utils": ["google-logging-utils@1.1.3", "", {}, "sha512-eAmLkjDjAFCVXg7A1unxHsLf961m6y17QFqXqAXGj/gVkKFrEICfStRfwUlGNfeCEjNRa32JEWOUTlYXPyyKvA=="],
 
     "graceful-fs": ["graceful-fs@4.2.12", "", {}, "sha512-iuyGF2E4oafQfPsRrG2wtY2ILupMhvtdrhzrxB+0VcjsPpSPttpfYdjnGFGsTi5MaJFjI1jOKHPQ6UTbTj9TAw=="],
+
+    "hono": ["hono@4.13.19", "", {}, "sha512-KmXvQAXwcAHV+muzbIwoJ23niEB5nMoDVr9WcRkU8mvjUECm/1+7v4Jgp7P7a+H6MLFrh+vXrGonGrGS+RQfkA=="],
 
     "https-proxy-agent": ["https-proxy-agent@7.0.6", "", { "dependencies": { "agent-base": "^7.1.2", "debug": "4" } }, "sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw=="],
 

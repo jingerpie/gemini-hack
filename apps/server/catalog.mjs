@@ -1109,22 +1109,3 @@ export function pickCatalog(query, { kind, maxPrice, color, limit = 5 } = {}) {
 	const out = found.kinds.length ? scored : scored.filter((s) => s.score >= 6);
 	return out.slice(0, limit);
 }
-
-// ---------- HTTP ----------
-const CORS = {
-	"Access-Control-Allow-Origin": "*",
-	"Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-	"Access-Control-Allow-Headers": "*",
-};
-/** GET /api/catalog -> CatalogResponse. Returns false for any other route. */
-export function handleCatalog(req, res, url) {
-	if (req.method !== "GET" || url.pathname !== "/api/catalog") return false;
-	const items = loadCatalog();
-	res.writeHead(200, {
-		...CORS,
-		"Content-Type": "application/json",
-		"Cache-Control": "public, max-age=300",
-	});
-	res.end(JSON.stringify({ items }));
-	return true;
-}
