@@ -2,17 +2,17 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const W = 0.42;           // total width (X) including pocket
+  const W = 0.42;           // total width (X) including right block
   const H = 0.52;           // total height (Y)
   const D = 0.36;           // total depth (Z)
   const T = 0.015;          // 15mm birch plywood thickness
+  const BLOCK_W = 0.09;     // 9 cm solid laminated right block width
   const BASE_CLEAR = 0.06;  // bottom shelf clearance from y = 0
   const TOP_LIP = 0.035;    // side/back lip above top shelf
   const R = 0.038;          // generous corner radius (~4 cm)
-  const POCKET_GAP = 0.045; // magazine pocket gap (4.5 cm)
 
-  const SHELF_W = W - 3 * T - POCKET_GAP;
-  const SHELF_CENTER_X = -(T + POCKET_GAP) / 2;
+  const SHELF_W = W - T - BLOCK_W;
+  const SHELF_CENTER_X = (T - BLOCK_W) / 2;
   const INNER_D = D - T;    // depth in front of back panel
 
   // Materials
@@ -48,55 +48,52 @@ function build(THREE) {
     return s;
   }
 
-  // Outer right panel shape with wide V-shaped magazine pocket cutout
-  function createOuterPocketPanelShape() {
+  // Right solid block shape in x-y plane with deep V-notch magazine pocket
+  function createRightBlockShape() {
     const s = new THREE.Shape();
-    const x0 = -D / 2;
-    const x1 = D / 2;
+    const x0 = W / 2 - BLOCK_W;
+    const x1 = W / 2;
     const y0 = 0;
     const y1 = H;
 
-    // V-cutout parameters: 7 cm wide at top, ~1.5 cm rounded bottom at ~2/3 down, centered
-    const vCenter = 0;
-    const vHalfTop = 0.035;
-    const vBottomY = H * 0.33;
-    const vTipR = 0.0075;
-    const rEar = 0.016;
+    const vCenter = (x0 + x1) / 2;
+    const vHalfTop = 0.02;      // 4 cm wide at top
+    const vBottomY = H * 0.33;  // ~1/3 height from floor
+    const vTipR = 0.005;        // ~1 cm rounded bottom
+    const rTop = 0.018;         // rounded top corners
+    const rVTop = 0.004;        // small transition radius at V-notch top
 
-    s.moveTo(x0 + R, y0);
+    s.moveTo(x0, y0);
     s.lineTo(x1 - R, y0);
     s.quadraticCurveTo(x1, y0, x1, y0 + R);
-    s.lineTo(x1, y1 - R);
-    s.quadraticCurveTo(x1, y1, x1 - R, y1);
+    s.lineTo(x1, y1 - rTop);
+    s.quadraticCurveTo(x1, y1, x1 - rTop, y1);
 
-    // Top edge of front-right ear
-    s.lineTo(vCenter + vHalfTop + rEar, y1);
-    s.quadraticCurveTo(vCenter + vHalfTop, y1, vCenter + vHalfTop - 0.004, y1 - rEar);
+    // Top of right ear into V-notch
+    s.lineTo(vCenter + vHalfTop + rVTop, y1);
+    s.quadraticCurveTo(vCenter + vHalfTop, y1, vCenter + vHalfTop - 0.002, y1 - rVTop);
 
-    // Down into V-cutout
+    // Down into V-notch
     s.lineTo(vCenter + vTipR, vBottomY + vTipR);
     s.quadraticCurveTo(vCenter, vBottomY - vTipR * 0.4, vCenter - vTipR, vBottomY + vTipR);
 
-    // Up out of V-cutout
-    s.lineTo(vCenter - vHalfTop + 0.004, y1 - rEar);
-    s.quadraticCurveTo(vCenter - vHalfTop, y1, vCenter - vHalfTop - rEar, y1);
+    // Up out of V-notch
+    s.lineTo(vCenter - vHalfTop + 0.002, y1 - rVTop);
+    s.quadraticCurveTo(vCenter - vHalfTop, y1, vCenter - vHalfTop - rVTop, y1);
 
-    // Top edge of back-right ear
-    s.lineTo(x0 + R, y1);
-    s.quadraticCurveTo(x0, y1, x0, y1 - R);
-    s.lineTo(x0, y0 + R);
-    s.quadraticCurveTo(x0, y0, x0 + R, y0);
+    // Top of left ear to inner edge
+    s.lineTo(x0 + rTop, y1);
+    s.quadraticCurveTo(x0, y1, x0, y1 - rTop);
+    s.lineTo(x0, y0);
     return s;
   }
 
-  const extrudeSettings = {
+  // 1. Left side panel (touches y = 0)
+  const leftGeo = new THREE.ExtrudeGeometry(createSidePanelShape(), {
     depth: T,
     bevelEnabled: false,
     curveSegments: 16
-  };
-
-  // 1. Left side panel (touches y = 0)
-  const leftGeo = new THREE.ExtrudeGeometry(createSidePanelShape(), extrudeSettings);
+  });
   leftGeo.rotateY(Math.PI / 2);
   const leftPanel = new THREE.Mesh(leftGeo, [yellowMat, plyEdgeMat]);
   leftPanel.position.set(-W / 2, 0, 0);
@@ -105,27 +102,20 @@ function build(THREE) {
   leftPanel.receiveShadow = true;
   group.add(leftPanel);
 
-  // 2. Right inner divider panel (closes the shelf unit)
-  const rightInnerGeo = new THREE.ExtrudeGeometry(createSidePanelShape(), extrudeSettings);
-  rightInnerGeo.rotateY(Math.PI / 2);
-  const rightInnerPanel = new THREE.Mesh(rightInnerGeo, [yellowMat, plyEdgeMat]);
-  rightInnerPanel.position.set(W / 2 - 2 * T - POCKET_GAP, 0, 0);
-  rightInnerPanel.name = 'right_inner_panel';
-  rightInnerPanel.castShadow = true;
-  rightInnerPanel.receiveShadow = true;
-  group.add(rightInnerPanel);
+  // 2. Right solid laminated block with V-notch magazine pocket (touches y = 0)
+  const rightBlockGeo = new THREE.ExtrudeGeometry(createRightBlockShape(), {
+    depth: D,
+    bevelEnabled: false,
+    curveSegments: 16
+  });
+  const rightBlock = new THREE.Mesh(rightBlockGeo, yellowMat);
+  rightBlock.position.set(0, 0, -D / 2);
+  rightBlock.name = 'right_pocket_block';
+  rightBlock.castShadow = true;
+  rightBlock.receiveShadow = true;
+  group.add(rightBlock);
 
-  // 3. Right outer pocket panel (with V-slot cutout, touches y = 0)
-  const rightOuterGeo = new THREE.ExtrudeGeometry(createOuterPocketPanelShape(), extrudeSettings);
-  rightOuterGeo.rotateY(Math.PI / 2);
-  const rightOuterPanel = new THREE.Mesh(rightOuterGeo, [yellowMat, plyEdgeMat]);
-  rightOuterPanel.position.set(W / 2 - T, 0, 0);
-  rightOuterPanel.name = 'right_outer_panel';
-  rightOuterPanel.castShadow = true;
-  rightOuterPanel.receiveShadow = true;
-  group.add(rightOuterPanel);
-
-  // 4. Back panel
+  // 3. Back panel
   const backH = H - BASE_CLEAR;
   const backGeo = new THREE.BoxGeometry(SHELF_W, backH, T);
   const backPanel = new THREE.Mesh(backGeo, [
@@ -149,7 +139,7 @@ function build(THREE) {
 
   const shelfGeo = new THREE.BoxGeometry(SHELF_W, T, INNER_D);
 
-  // 5. Bottom shelf (raised by BASE_CLEAR = 6 cm)
+  // 4. Bottom shelf (raised by BASE_CLEAR = 6 cm)
   const bottomShelfY = BASE_CLEAR + T / 2;
   const bottomShelf = new THREE.Mesh(shelfGeo, shelfMats);
   bottomShelf.position.set(SHELF_CENTER_X, bottomShelfY, T / 2);
@@ -158,7 +148,7 @@ function build(THREE) {
   bottomShelf.receiveShadow = true;
   group.add(bottomShelf);
 
-  // 6. Top shelf
+  // 5. Top shelf
   const topShelfY = H - TOP_LIP - T / 2;
   const topShelf = new THREE.Mesh(shelfGeo, shelfMats);
   topShelf.position.set(SHELF_CENTER_X, topShelfY, T / 2);
@@ -167,7 +157,7 @@ function build(THREE) {
   topShelf.receiveShadow = true;
   group.add(topShelf);
 
-  // 7. Middle shelf
+  // 6. Middle shelf
   const midShelfY = (bottomShelfY + topShelfY) / 2;
   const midShelf = new THREE.Mesh(shelfGeo, shelfMats);
   midShelf.position.set(SHELF_CENTER_X, midShelfY, T / 2);
@@ -176,34 +166,7 @@ function build(THREE) {
   midShelf.receiveShadow = true;
   group.add(midShelf);
 
-  // 8-10. Magazine pocket enclosure (closed at bottom, front, and back; open at top)
-  const pocketCenterX = W / 2 - T - POCKET_GAP / 2;
-  const pocketWallH = H - BASE_CLEAR - T - R * 0.5;
-
-  const pocketBottomGeo = new THREE.BoxGeometry(POCKET_GAP, T, D - 2 * T);
-  const pocketBottom = new THREE.Mesh(pocketBottomGeo, yellowMat);
-  pocketBottom.position.set(pocketCenterX, BASE_CLEAR + T / 2, 0);
-  pocketBottom.name = 'pocket_bottom';
-  pocketBottom.castShadow = true;
-  pocketBottom.receiveShadow = true;
-  group.add(pocketBottom);
-
-  const pocketWallGeo = new THREE.BoxGeometry(POCKET_GAP, pocketWallH, T);
-  const pocketFront = new THREE.Mesh(pocketWallGeo, yellowMat);
-  pocketFront.position.set(pocketCenterX, BASE_CLEAR + T + pocketWallH / 2, D / 2 - T / 2 - 0.004);
-  pocketFront.name = 'pocket_front_wall';
-  pocketFront.castShadow = true;
-  pocketFront.receiveShadow = true;
-  group.add(pocketFront);
-
-  const pocketBack = new THREE.Mesh(pocketWallGeo, yellowMat);
-  pocketBack.position.set(pocketCenterX, BASE_CLEAR + T + pocketWallH / 2, -D / 2 + T / 2 + 0.004);
-  pocketBack.name = 'pocket_back_wall';
-  pocketBack.castShadow = true;
-  pocketBack.receiveShadow = true;
-  group.add(pocketBack);
-
-  // 11-12. Subtle inner shelf support cleats under middle shelf
+  // 7-8. Subtle inner shelf support cleats under middle shelf
   const cleatGeo = new THREE.BoxGeometry(0.01, 0.01, INNER_D - 0.04);
   const cleatLeft = new THREE.Mesh(cleatGeo, yellowMat);
   cleatLeft.position.set(SHELF_CENTER_X - SHELF_W / 2 + 0.005, midShelfY - T / 2 - 0.005, T / 2);
