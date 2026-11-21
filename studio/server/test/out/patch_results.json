@@ -1,0 +1,250 @@
+{
+  "results": [
+    {
+      "u": "paint the walls black",
+      "wall": 3244,
+      "ops": [
+        {
+          "op": "surface",
+          "id": "wall_back",
+          "changes": {
+            "color": "#1a1a1a"
+          }
+        },
+        {
+          "op": "surface",
+          "id": "wall_left",
+          "changes": {
+            "color": "#1a1a1a"
+          }
+        },
+        {
+          "op": "surface",
+          "id": "wall_right",
+          "changes": {
+            "color": "#1a1a1a"
+          }
+        }
+      ],
+      "jobs": [],
+      "say": "Painted the walls black.",
+      "ms": 3135,
+      "model": "gemini-4-hydrogen"
+    },
+    {
+      "u": "put a BMW logo on that wall",
+      "wall": 4324,
+      "ops": [
+        {
+          "op": "add_decal",
+          "id": "bmw_logo1",
+          "decal": {
+            "id": "bmw_logo1",
+            "name": "BMW logo",
+            "surface": "wall_back",
+            "x": 0,
+            "y": 1.6,
+            "width": 1,
+            "height": 1,
+            "prompt": "A flat, front-on vector graphic of the BMW roundel logo with its blue and white quarters, black outer ring, silver metallic border, and white BMW lettering, centered on a plain solid black background, crisp edges, no perspective, no mockup, no wall, no shadows.",
+            "status": "building"
+          }
+        }
+      ],
+      "jobs": [
+        {
+          "kind": "decal",
+          "decalId": "bmw_logo1",
+          "prompt": "A flat, front-on vector graphic of the BMW roundel logo with its blue and white quarters, black outer ring, silver metallic border, and white BMW lettering, centered on a plain solid black background, crisp edges, no perspective, no mockup, no wall, no shadows.",
+          "width": 1,
+          "height": 1
+        }
+      ],
+      "say": "Added a BMW logo to the back wall.",
+      "ms": 4316,
+      "model": "gemini-4-hydrogen"
+    },
+    {
+      "u": "I want a chair over there by the left wall, but make it look like a throne",
+      "wall": 4181,
+      "ops": [
+        {
+          "op": "add",
+          "id": "throne1",
+          "object": {
+            "id": "throne1",
+            "name": "royal throne",
+            "shape": "custom",
+            "size": {
+              "x": 0.9,
+              "y": 1.6,
+              "z": 0.8
+            },
+            "position": {
+              "x": -2.55,
+              "y": 0,
+              "z": 0
+            },
+            "rotation_y_deg": 90,
+            "color": "#4a1818",
+            "parent": "",
+            "description": "An ornate royal throne chair in dark carved walnut wood and deep crimson velvet upholstery. It features a tall, arched backrest crowned with intricate gilded finials, tufted velvet seat and back cushions, wide scrolled armrests with carved lion-head accents, and sturdy turned legs. Rich, regal finish with subtle satin sheen on the woodwork and soft matte velvet.",
+            "status": "building"
+          }
+        }
+      ],
+      "jobs": [
+        {
+          "kind": "asset",
+          "objectId": "throne1",
+          "name": "royal throne",
+          "description": "An ornate royal throne chair in dark carved walnut wood and deep crimson velvet upholstery. It features a tall, arched backrest crowned with intricate gilded finials, tufted velvet seat and back cushions, wide scrolled armrests with carved lion-head accents, and sturdy turned legs. Rich, regal finish with subtle satin sheen on the woodwork and soft matte velvet.",
+          "size": {
+            "x": 0.9,
+            "y": 1.6,
+            "z": 0.8
+          }
+        }
+      ],
+      "say": "Added a royal throne against the left wall.",
+      "ms": 4174,
+      "model": "gemini-4-hydrogen"
+    },
+    {
+      "u": "make the floor shiny",
+      "wall": 2203,
+      "ops": [
+        {
+          "op": "surface",
+          "id": "floor",
+          "changes": {
+            "color": "#a0703c",
+            "material": {
+              "roughness": 0.15
+            }
+          }
+        }
+      ],
+      "jobs": [],
+      "say": "Made the floor shiny.",
+      "ms": 2195,
+      "model": "gemini-4-hydrogen"
+    },
+    {
+      "u": "hmm let me think about what else",
+      "wall": 1716,
+      "ops": [],
+      "jobs": [],
+      "say": "Take your time, let me know what you'd like.",
+      "ms": 1707,
+      "model": "gemini-4-hydrogen"
+    }
+  ],
+  "scene": {
+    "room": {
+      "width": 6,
+      "depth": 5,
+      "height": 2.8
+    },
+    "surfaces": {
+      "wall_back": {
+        "id": "wall_back",
+        "color": "#1a1a1a"
+      },
+      "wall_left": {
+        "id": "wall_left",
+        "color": "#1a1a1a"
+      },
+      "wall_right": {
+        "id": "wall_right",
+        "color": "#1a1a1a"
+      },
+      "floor": {
+        "id": "floor",
+        "color": "#a0703c",
+        "material": {
+          "roughness": 0.15
+        }
+      },
+      "ceiling": {
+        "id": "ceiling",
+        "color": "#f5f5f5"
+      }
+    },
+    "objects": [
+      {
+        "id": "sofa1",
+        "name": "grey sofa",
+        "shape": "custom",
+        "size": {
+          "x": 2.1,
+          "y": 0.85,
+          "z": 0.95
+        },
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -1.95
+        },
+        "rotation_y_deg": 0,
+        "color": "#7a7a7a",
+        "parent": "",
+        "description": "A modern three-seat sofa in grey fabric with low square arms and thin black metal legs.",
+        "status": "ready"
+      },
+      {
+        "id": "table1",
+        "name": "coffee table",
+        "shape": "custom",
+        "size": {
+          "x": 1.1,
+          "y": 0.45,
+          "z": 0.6
+        },
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -0.6
+        },
+        "rotation_y_deg": 0,
+        "color": "#5a3a22",
+        "parent": "",
+        "description": "A rectangular walnut coffee table with tapered legs.",
+        "status": "ready"
+      },
+      {
+        "id": "throne1",
+        "name": "royal throne",
+        "shape": "custom",
+        "size": {
+          "x": 0.9,
+          "y": 1.6,
+          "z": 0.8
+        },
+        "position": {
+          "x": -2.55,
+          "y": 0,
+          "z": 0
+        },
+        "rotation_y_deg": 90,
+        "color": "#4a1818",
+        "parent": "",
+        "description": "An ornate royal throne chair in dark carved walnut wood and deep crimson velvet upholstery. It features a tall, arched backrest crowned with intricate gilded finials, tufted velvet seat and back cushions, wide scrolled armrests with carved lion-head accents, and sturdy turned legs. Rich, regal finish with subtle satin sheen on the woodwork and soft matte velvet.",
+        "status": "building"
+      }
+    ],
+    "decals": [
+      {
+        "id": "bmw_logo1",
+        "name": "BMW logo",
+        "surface": "wall_back",
+        "x": 0,
+        "y": 1.6,
+        "width": 1,
+        "height": 1,
+        "prompt": "A flat, front-on vector graphic of the BMW roundel logo with its blue and white quarters, black outer ring, silver metallic border, and white BMW lettering, centered on a plain solid black background, crisp edges, no perspective, no mockup, no wall, no shadows.",
+        "status": "building"
+      }
+    ]
+  }
+}
