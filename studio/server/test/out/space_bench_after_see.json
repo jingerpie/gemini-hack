@@ -1,0 +1,74 @@
+[
+  {
+    "k": 1,
+    "u": "put a plant in the empty corner",
+    "ms": 3380,
+    "pass": true,
+    "why": null,
+    "say": "Added a potted plant in the back-right corner.",
+    "dropped": [],
+    "ops": [
+      "add plant2 @(2.7,0,-2.2) 0.5x1.2x0.5 r0"
+    ]
+  },
+  {
+    "k": 2,
+    "u": "put a vase on the table",
+    "ms": 3714,
+    "pass": true,
+    "why": null,
+    "say": "Added a ceramic vase on the coffee table.",
+    "dropped": [],
+    "ops": [
+      "add vase1 @(0,0.45,-0.8) 0.2x0.35x0.2 r0 on table1"
+    ]
+  },
+  {
+    "k": 3,
+    "u": "hang a painting above the sofa",
+    "ms": 3006,
+    "pass": true,
+    "why": null,
+    "say": "Hung a painting above the sofa.",
+    "dropped": [],
+    "ops": [
+      "add_decal painting2 wall_back x0 y1.5 1x0.7"
+    ]
+  },
+  {
+    "k": 8,
+    "u": "put a side table between the sofa and the armchair",
+    "ms": 3571,
+    "pass": true,
+    "why": null,
+    "say": "Added a side table between the sofa and armchair.",
+    "dropped": [],
+    "ops": [
+      "add side_table1 @(-1.56,0,-2.2) 0.5x0.55x0.5 r0"
+    ]
+  },
+  {
+    "k": 13,
+    "u": "make this red",
+    "ms": 2227,
+    "pass": true,
+    "why": null,
+    "say": "Made the bookshelf red.",
+    "dropped": [],
+    "ops": [
+      "update shelf1 {\"color\":\"#c02020\",\"description\":\"A tall modern open-front wooden bookshelf painted in a rich matte crimson red, with fi"
+    ]
+  },
+  {
+    "k": 16,
+    "u": "put a poster on the wall on my right",
+    "ms": 3985,
+    "pass": true,
+    "why": null,
+    "say": "Added a poster on the back wall.",
+    "dropped": [],
+    "ops": [
+      "add_decal poster1 wall_back x0 y1.6 0.6x0.9"
+    ]
+  }
+]

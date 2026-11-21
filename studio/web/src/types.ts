@@ -27,6 +27,9 @@ export type SceneObject = {
   description?: string;
   // shape === "custom" only: "building" shows the placeholder, "ready" shows generated geometry, "failed" keeps placeholder.
   status?: "building" | "ready" | "failed";
+  // Set when the object is a real product from the shop catalog (studio/catalog/mock-shop). Its 3D model is
+  // pre-built, so it appears at once instead of being generated; the product is what the user can buy.
+  product?: Product;
 };
 
 export type SurfaceId = "wall_back" | "wall_left" | "wall_right" | "floor" | "ceiling";
@@ -68,23 +71,34 @@ export type Op =
 
 // Slow background work the server asks the client to start after applying ops.
 export type Job =
-  | { kind: "asset"; objectId: string; name: string; description: string; size: Vec3 }
+  | { kind: "asset"; objectId: string; name: string; description: string; size: Vec3; catalogId?: string /* pre-built catalog model: returns in well under a second */ }
   | { kind: "decal"; decalId: string; prompt: string; width: number; height: number };
 
-export type HistoryItem = { u: string; applied: string };
+// `ids` (optional): every object/decal/surface id that utterance touched, newest last, so "it" / "that one" resolves
+// even when `applied` was cut short.
+export type HistoryItem = { u: string; applied: string; ids?: string[] };
 
 // ---------- HTTP API (server on :8787, proxied by Vite at /api) ----------
 
 // POST /api/patch
-// `image` (optional): JPEG data URL of the canvas, used only when the request is escalated to the designer model.
-export type PatchRequest = { scene: Scene; history: HistoryItem[]; utterance: string; image?: string };
-export type PatchResponse = { ops: Op[]; jobs: Job[]; say: string; ms: number; model: string; dropped?: string[] /* ops the server discarded */ };
+// Every request carries the whole space: the scene, what the user is looking at (`view`) and a picture of it (`image`).
+// `image` (optional): JPEG data URL of the canvas as the user sees it.
+// `view` (optional): where the camera is, and what the cursor is on, so "this", "that wall", "over there" can be resolved.
+export type View = {
+  position: Vec3; // camera position, world meters
+  target: Vec3; // point the camera looks at
+  pointed?: string; // id of the object, decal or surface under the cursor right now, if any
+  pointedAt?: Vec3; // world point under the cursor (e.g. the spot on the floor or wall), if any
+};
+export type PatchRequest = { scene: Scene; history: HistoryItem[]; utterance: string; image?: string; view?: View };
+export type PatchResponse = { ops: Op[]; jobs: Job[]; say: string; ms: number; model: string; dropped?: string[] /* ops the server discarded */; brief?: string /* set when the designer model did the work: the brief the orchestrator handed it */ };
 
 // POST /api/asset  (body: AssetRequest) -> text/event-stream, each line `data: <AssetEvent json>\n\n`
-export type AssetRequest = { objectId: string; name: string; description: string; size: Vec3; currentCode?: string };
+// With `catalogId` the server skips generation and returns the catalog's pre-built model at once (via: "catalog").
+export type AssetRequest = { objectId: string; name: string; description: string; size: Vec3; currentCode?: string; catalogId?: string };
 export type AssetEvent =
   | { type: "status"; text: string } // short human-readable progress line (agent thought heading, tool call, etc.)
-  | { type: "done"; code: string; ms: number; via: "managed-agent" | "direct"; model: string }
+  | { type: "done"; code: string; ms: number; via: "managed-agent" | "direct" | "catalog"; model: string }
   | { type: "error"; message: string };
 // `code` is JavaScript source that defines `function build(THREE) { ... return group; }` returning a THREE.Group
 // built only from THREE primitives/materials (no imports, no loaders, no DOM, no network).
@@ -98,7 +112,16 @@ export type DecalResponse = { dataUrl: string; ms: number; model: string; aspect
 // A Managed Agent searches the web for real products matching a custom object. Slow (45-125 s); started by the
 // client alongside the asset job for a newly added custom object (not for rebuilds).
 export type SourceRequest = { objectId: string; name: string; description: string };
-export type Product = { title: string; price: string; store: string; url: string; image_url: string };
+// `catalogId` = the catalog entry's modelFile without ".build.js" (e.g. "sofa/03-junction"); set for catalog products.
+export type Product = { title: string; price: string; store: string; url: string; image_url: string; catalogId?: string };
+
+// GET /api/catalog -> the shop catalog (100 real listings, each with a pre-built 3D model)
+export type CatalogItem = Product & { catalogId: string; kind: string; productType: string; size: Vec3 /* meters */ };
+export type CatalogResponse = { items: CatalogItem[] };
+
+// POST /api/checkout -> real checkout links from Shop MCP, one per merchant. Paying happens on the merchant's page.
+export type CheckoutRequest = { items: { catalogId?: string; url?: string; quantity?: number }[] };
+export type CheckoutResponse = { checkouts: { store: string; url: string /* continue_url, opened unchanged */; titles: string[]; total?: string }[]; failed?: { title: string; reason: string }[]; ms: number };
 export type SourceEvent =
   | { type: "status"; text: string }
   | { type: "done"; products: Product[]; ms: number; model: string }
@@ -129,6 +152,7 @@ export interface Engine {
   subscribe(fn: (scene: Scene) => void): () => void;
   screenshot(): string; // JPEG data URL of the current view
   focus(id: string): void; // glide camera toward an object / decal / surface
+  getView?(): View; // camera pose and what the cursor is on, sent with every patch request
   dispose(): void;
 }
 // web/src/scene/engine.ts must export:  export function createEngine(container: HTMLElement): Engine

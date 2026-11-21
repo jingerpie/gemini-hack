@@ -1,6 +1,6 @@
 // Studio backend. Plain node:http. Run: node server/index.mjs   (PORT env, default 8787)
 import http from 'node:http';
-import { scrub } from './lib.mjs';
+import { scrub, stats as geminiStats } from './lib.mjs';
 import { patch, PATCH_MODEL, DESIGNER_MODEL } from './patch.mjs';
 import { buildAsset, assetConfig } from './asset.mjs';
 import { decal, token, verify, IMAGE_MODEL, LIVE_MODEL, DECISION_MODEL } from './media.mjs';
@@ -30,11 +30,11 @@ function json(res, status, obj) {
 async function handle(req, res, url, note) {
   const route = `${req.method} ${url.pathname}`;
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
-  if (route === 'GET /api/health') return json(res, 200, { ok: true, models: { patch: PATCH_MODEL, designer: DESIGNER_MODEL, asset: assetConfig, image: IMAGE_MODEL, live: LIVE_MODEL, decision: DECISION_MODEL, source: { agent: SOURCE_AGENT, direct: SOURCE_DIRECT_MODEL } } });
+  if (route === 'GET /api/health') return json(res, 200, { ok: true, gemini: geminiStats, models: { patch: PATCH_MODEL, designer: DESIGNER_MODEL, asset: assetConfig, image: IMAGE_MODEL, live: LIVE_MODEL, decision: DECISION_MODEL, source: { agent: SOURCE_AGENT, direct: SOURCE_DIRECT_MODEL } } });
 
   if (route === 'POST /api/patch') {
     const body = await readJson(req);
-    const out = await patch(body, { designer: url.searchParams.get('designer') });
+    const out = await patch(body, { designer: url.searchParams.get('designer'), see: url.searchParams.has('see') ? url.searchParams.get('see') === '1' : undefined });
     note(`"${String(body.utterance).slice(0, 60)}" -> ${out.ops.length} ops, ${out.jobs.length} jobs, ${out.model} ${out.ms}ms${out._dropped.length ? ', dropped: ' + out._dropped.join('; ') : ''}`);
     const { _dropped, ...resp } = out;
     if (_dropped.length) resp.dropped = _dropped;

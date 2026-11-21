@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { SERVER_DIR, BASE, H, sse, scrub, generateContent, textOf } from './lib.mjs';
+import { SERVER_DIR, BASE, H, sse, scrub, generateContent, textOf, fetchRetry } from './lib.mjs';
 
 export const AGENT = process.env.ASSET_AGENT || 'antigravity-preview-09-2026';
 export const DIRECT_MODEL = process.env.ASSET_DIRECT_MODEL || 'gemini-4-hydrogen';
@@ -153,7 +153,7 @@ async function agentBuild(req, { signal, onStatus, onInteraction, onCode, agentM
   onStatus = text => { lastStatusAt = Date.now(); rawStatus(text); };
   const hb = setInterval(() => { if (Date.now() - lastStatusAt > 5000) onStatus(`managed agent: designing the model (${Math.round((Date.now() - t0) / 1000)}s)`); }, 1000);
   try {
-    const res = await fetch(`${BASE}/interactions`, { method: 'POST', headers: H, signal,
+    const res = await fetchRetry(`${BASE}/interactions`, { method: 'POST', headers: H, signal,
       body: JSON.stringify({ agent: AGENT, input, environment, stream: true, ...(model && { agent_config: { type: 'antigravity', model } }) }) });
     if (!res.ok) throw new Error(scrub(`agent HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`));
     const steps = {}; let lastFile = null, fileTouchedOtherwise = false, checkOk = false, earlyExit = false;
