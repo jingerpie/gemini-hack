@@ -1166,16 +1166,27 @@
   },
   {
     "kind": "nightstand",
-    "name": "Night Pocket",
+    "name": "Reach",
     "productType": "Bedside Table",
-    "vendor": "Little Room Works",
-    "price": 79,
+    "vendor": "Quiet Span",
+    "price": 980,
     "currency": "USD",
-    "store": "little-room-works-9f571405",
-    "handle": "night-pocket",
-    "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/9f571405-f1d0-43b3-b604-36375f0cf016/f3fbd25749d2b818dd4f544af7d9c005bb54200294cb9486584f88f6eff625c2.png",
-    "imageFile": "nightstand/02-night-pocket.png",
-    "modelFile": "nightstand/02-night-pocket.build.js"
+    "store": "quiet-span-a46772a1",
+    "handle": "reach",
+    "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/0ffca0aeccca42b770a0fd7e4fc98d12484e1f02f4e7e1912cb1b859d8bcd333.png",
+    "imageFile": "nightstand/02-reach.png",
+    "listing": {
+      "option": "Width",
+      "value": "45 cm",
+      "variants": [
+        "45 cm",
+        "60 cm"
+      ],
+      "target": {
+        "x": 0.45
+      }
+    },
+    "modelFile": "nightstand/02-reach.build.js"
   },
   {
     "kind": "nightstand",
