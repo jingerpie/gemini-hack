@@ -7,7 +7,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import { TaskManager } from "./lib/taskManager";
+import { manager } from "./lib/studio";
 import type { Engine, Voice, VoiceHandlers, VoiceState } from "./types";
 import { DebugPanel } from "./ui/DebugPanel";
 import { Header } from "./ui/Hud";
@@ -20,10 +20,6 @@ import { LiveCaption, TalkButton } from "./ui/Voice";
 // ?mock=1 → mock engine + api + voice.  ?mock=api → real 3D engine, mock api + voice.  (none) → all real.
 const MOCK_MODE = new URLSearchParams(location.search).get("mock");
 const MOCK = MOCK_MODE != null && MOCK_MODE !== "0";
-
-// One manager per page load (survives StrictMode double effects).
-const manager = new TaskManager();
-(window as unknown as { __studio: TaskManager }).__studio = manager;
 
 type Factories = {
 	createEngine: (el: HTMLElement) => Engine;

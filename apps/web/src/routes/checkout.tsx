@@ -1,24 +1,12 @@
 // Checkout: every object in the room, grouped by the store that sells it, with one "Check out all" button.
-// UI only: the cart is demo data and the pay buttons open nothing. Real checkouts (Shop MCP) are not wired here.
+// UI only: the cart is read from the room, but the pay buttons open nothing. Real checkouts (Shop MCP) are not wired here.
 import { Button } from "@gemini-hack/ui/components/button";
 import { Spinner } from "@gemini-hack/ui/components/spinner";
 import { cn } from "@gemini-hack/ui/lib/utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-	ArrowLeft,
-	Check,
-	ExternalLink,
-	Lock,
-	TriangleAlert,
-} from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, Lock } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import {
-	type CartStore,
-	demoItemCount,
-	demoStores,
-	demoTotal,
-	fmtUsd,
-} from "../catalog/demoCart";
+import { type CartStore, fmtUsd, useRoomCart } from "../catalog/cart";
 import { Rail } from "../ui/Rail";
 
 export const Route = createFileRoute("/checkout")({ component: CheckoutPage });
@@ -30,6 +18,7 @@ const pillBadge =
 	"inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold";
 
 function CheckoutPage() {
+	const { stores, itemCount, total } = useRoomCart();
 	const [phase, setPhase] = useState<Phase>("review");
 	const [opened, setOpened] = useState<Record<string, boolean>>({});
 	const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -46,8 +35,8 @@ function CheckoutPage() {
 	const pay = (store: string) => setOpened((o) => ({ ...o, [store]: true }));
 
 	const ready = phase === "ready";
-	const openedCount = demoStores.filter((s) => opened[s.name]).length;
-	const allOpened = ready && openedCount === demoStores.length;
+	const openedCount = stores.filter((s) => opened[s.name]).length;
+	const allOpened = ready && openedCount === stores.length;
 
 	return (
 		<div className="flex min-h-full flex-wrap items-start gap-4 p-4">
@@ -92,8 +81,8 @@ function CheckoutPage() {
 							<>
 								<b className="font-semibold">
 									{allOpened
-										? `All ${demoStores.length}`
-										: `${demoStores.length} of ${demoStores.length}`}
+										? `All ${stores.length}`
+										: `${stores.length} of ${stores.length}`}
 								</b>
 								<span className="text-muted-foreground">
 									{allOpened ? "store checkouts opened" : "checkouts ready"}
@@ -101,9 +90,9 @@ function CheckoutPage() {
 							</>
 						) : (
 							<>
-								<b className="font-semibold">{demoItemCount} items</b>
+								<b className="font-semibold">{itemCount} items</b>
 								<span className="text-muted-foreground">
-									from {demoStores.length} stores
+									from {stores.length} stores
 								</span>
 							</>
 						)}
@@ -115,7 +104,28 @@ function CheckoutPage() {
 						aria-label="Stores"
 						className="flex min-w-0 flex-[999_1_520px] flex-col gap-4"
 					>
-						{demoStores.map((s) => (
+						{stores.length === 0 && (
+							<div
+								className={cn(
+									card,
+									"text-muted-foreground flex flex-col items-start gap-3 p-6 text-sm",
+								)}
+							>
+								<b className="text-foreground text-lg font-bold tracking-[-0.5px]">
+									Nothing to buy yet
+								</b>
+								Add furniture from the catalog or ask for a piece in the room.
+								Every product placed there shows up here.
+								<Button
+									nativeButton={false}
+									render={<Link to="/" />}
+									className="rounded-full"
+								>
+									Back to the room
+								</Button>
+							</div>
+						)}
+						{stores.map((s) => (
 							<StoreCard
 								key={s.name}
 								store={s}
@@ -135,7 +145,7 @@ function CheckoutPage() {
 								Summary
 							</h2>
 							<dl className="grid grid-cols-[minmax(0,1fr)_auto] text-sm">
-								{demoStores.map((s) => (
+								{stores.map((s) => (
 									<div key={s.name} className="contents">
 										<dt className="border-border text-muted-foreground truncate border-t py-2.5">
 											{s.name}
@@ -149,7 +159,7 @@ function CheckoutPage() {
 									Items total
 								</dt>
 								<dd className="border-foreground border-t pt-3 text-right text-xl font-bold tracking-[-0.6px]">
-									{fmtUsd(demoTotal)}
+									{fmtUsd(total)}
 								</dd>
 							</dl>
 							<p className="text-muted-foreground text-xs leading-[17px]">
@@ -157,12 +167,12 @@ function CheckoutPage() {
 								on its page.
 							</p>
 
-							{phase === "review" && (
+							{phase === "review" && stores.length > 0 && (
 								<Button
 									className="h-13 rounded-full text-base font-semibold tracking-[-0.3px]"
 									onClick={checkoutAll}
 								>
-									Check out all · {demoStores.length} stores
+									Check out all · {stores.length} stores
 								</Button>
 							)}
 							{phase === "creating" && (
@@ -172,7 +182,7 @@ function CheckoutPage() {
 									className="h-13 rounded-full text-base font-semibold"
 								>
 									<Spinner />
-									Opening checkouts at {demoStores.length} stores
+									Opening checkouts at {stores.length} stores
 								</Button>
 							)}
 							{ready && (
@@ -180,26 +190,26 @@ function CheckoutPage() {
 									<div className="flex items-center justify-between text-sm">
 										<b className="font-semibold">Pay at each store</b>
 										<span className="text-muted-foreground">
-											{openedCount} of {demoStores.length} opened
+											{openedCount} of {stores.length} opened
 										</span>
 									</div>
 									<div
 										role="progressbar"
 										aria-label="Stores opened"
 										aria-valuemin={0}
-										aria-valuemax={demoStores.length}
+										aria-valuemax={stores.length}
 										aria-valuenow={openedCount}
 										className="bg-muted h-1.5 overflow-hidden rounded-full"
 									>
 										<div
 											className="bg-ok h-full rounded-full transition-[width]"
 											style={{
-												width: `${(openedCount / demoStores.length) * 100}%`,
+												width: `${(openedCount / stores.length) * 100}%`,
 											}}
 										/>
 									</div>
 									<ol className="flex flex-col gap-2">
-										{demoStores.map((s, i) => (
+										{stores.map((s, i) => (
 											<li key={s.name}>
 												<button
 													type="button"
@@ -303,20 +313,20 @@ function StoreCard({
 			<ul className="px-5 py-1">
 				{store.lines.map((l) => (
 					<li
-						key={l.item.index}
+						key={l.key}
 						className="border-muted flex items-center gap-3.5 border-b py-3 last:border-b-0"
 					>
 						<img
-							src={l.item.img}
+							src={l.img}
 							alt=""
 							className="bg-muted size-16 flex-none rounded-xl object-cover"
 						/>
 						<div className="flex min-w-0 flex-1 flex-col gap-0.5">
 							<b className="truncate text-[15px] leading-5 font-semibold tracking-[-0.3px]">
-								{l.item.name}
+								{l.title}
 							</b>
 							<span className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">
-								{l.item.productType} · Qty {l.qty}
+								{l.productType} · Qty {l.qty}
 								{l.similar && (
 									<span className="bg-warn/10 text-warn inline-flex h-5 items-center rounded-full px-2 font-semibold">
 										Closest match
@@ -325,18 +335,11 @@ function StoreCard({
 							</span>
 						</div>
 						<b className="text-[15px] font-semibold whitespace-nowrap">
-							{fmtUsd(l.item.price * l.qty)}
+							{fmtUsd(l.price * l.qty)}
 						</b>
 					</li>
 				))}
 			</ul>
-
-			{ready && store.warning && (
-				<div className="bg-warn/10 text-warn mx-5 mt-1 flex gap-2.5 rounded-xl px-3.5 py-3 text-sm">
-					<TriangleAlert className="mt-0.5 size-4.5 flex-none" aria-hidden />
-					<span>{store.warning}</span>
-				</div>
-			)}
 
 			<div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-5 pt-4 pb-4.5">
 				<dl className="grid flex-[1_1_220px] grid-cols-[auto_auto] justify-start gap-x-4 gap-y-0.5 text-[13px]">

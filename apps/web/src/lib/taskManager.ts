@@ -265,6 +265,8 @@ export class TaskManager {
 	private shop: ShopGroup[] = [];
 	private shopSeen = new Set<string>(); // objectIds whose group has seen its object in the scene
 	private initialScene: Scene | null = null;
+	/** Latest room scene; kept after the studio unmounts so other pages (checkout) can read the room. */
+	private lastScene: Scene | null = null;
 	private shotCheap = URL_PARAMS.get("shot") !== "0";
 	private shotSlow = 0;
 	/** size of the last patch screenshot (KB) and how long it took (ms), for diagnostics */
@@ -293,18 +295,52 @@ export class TaskManager {
 	attachEngine(engine: Engine | null) {
 		this.unsubEngine?.();
 		this.unsubEngine = null;
+		// Keep the models the leaving engine shows, so the room can be rebuilt by the next one.
+		const prev = this.engine as (Engine & Partial<EngineExtras>) | null;
+		if (prev && prev !== engine && this.lastScene)
+			for (const o of this.lastScene.objects) {
+				if (o.shape !== "custom") continue;
+				let code: string | undefined;
+				try {
+					code = prev.getAssetCode?.(o.id);
+				} catch {
+					/* disposed engine */
+				}
+				if (code && !code.startsWith("glb:")) this.assetCode.set(o.id, code);
+			}
 		this.engine = engine;
 		if (engine) {
 			const s0 = engine.getScene();
 			if (!this.initialScene) this.initialScene = s0;
+			// Coming back to the studio from another page: the new engine starts on the default room, so put back
+			// the room the user left (and its generated / merchant models).
+			const restore = this.lastScene;
+			this.lastScene = s0;
 			this.countScene(s0);
 			this.unsubEngine = engine.subscribe((s) => {
+				this.lastScene = s;
 				this.countScene(s);
 				this.pruneShop(s);
 				this.emit();
 			});
+			if (restore) this.restoreScene(engine, restore);
 		}
 		this.emit();
+	}
+
+	private restoreScene(engine: Engine, scene: Scene) {
+		const e = engine as Engine & Partial<EngineExtras>;
+		if (!e.setScene) return;
+		this.safe(() => e.setScene?.(scene));
+		for (const o of scene.objects) {
+			if (o.shape !== "custom") continue;
+			const code = this.assetCode.get(o.id);
+			if (o.glb && e.setAssetGlb)
+				e.setAssetGlb(o.id, o.glb).catch(() => {
+					if (code) this.safe(() => e.setAssetCode(o.id, code, o.description));
+				});
+			else if (code) this.safe(() => e.setAssetCode(o.id, code, o.description));
+		}
 	}
 
 	private countScene(s: Scene) {
@@ -319,6 +355,9 @@ export class TaskManager {
 	};
 
 	getSnapshot = () => this.snapshot;
+
+	/** The room as last seen (stable reference between changes, for useSyncExternalStore). */
+	getRoomScene = () => this.lastScene;
 
 	/** Live task list for the rAF-driven timeline (no React round-trip). */
 	liveTasks(): readonly Task[] {

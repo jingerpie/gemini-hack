@@ -17,7 +17,7 @@ import { cn } from "@gemini-hack/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { Camera, ShoppingBag } from "lucide-react";
 import type { ChipState } from "../App";
-import { demoItemCount, demoTotal, fmtUsd } from "../catalog/demoCart";
+import { fmtUsd, useRoomCart } from "../catalog/cart";
 import { Hint } from "./parts";
 
 type Props = {
@@ -48,6 +48,7 @@ export function Header({
 	onRender,
 	rendering,
 }: Props) {
+	const cart = useRoomCart();
 	return (
 		<header className="flex min-h-14 flex-wrap items-center gap-3">
 			<div className="min-w-0 flex-[1_1_160px]">
@@ -88,7 +89,8 @@ export function Header({
 						<ShoppingBag />
 						Check out
 						<span className="bg-background/15 inline-flex h-7 items-center rounded-full px-2.5 text-xs font-semibold">
-							{demoItemCount} items · {fmtUsd(demoTotal)}
+							{cart.itemCount} {cart.itemCount === 1 ? "item" : "items"} ·{" "}
+							{fmtUsd(cart.total)}
 						</span>
 					</Button>
 				</Hint>
