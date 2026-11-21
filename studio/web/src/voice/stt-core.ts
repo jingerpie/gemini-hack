@@ -23,6 +23,7 @@ export const TUNING = {
   VAD_FLOOR_RISE: 0.05, // per-frame smoothing when the floor rises (~0.4 s time constant)
   VAD_FLOOR_FALL: 0.3, // per-frame smoothing when the floor falls
   END_SILENCE_MS: 450, // silence after speech that ends an utterance
+  MAX_AUDIO_LAG_MS: 1500, // VAD runs on an audio-sample clock that may trail the wall clock by at most this much
   // --- commit timing ---
   SETTLE_CAP_MS: 900, // after end-of-speech, wait at most this long for the transcript before committing anyway
   PUNCT_EARLY_LAG_MS: 150, // commit without waiting for the final if the newest interim ends in . ? ! and arrived
@@ -216,6 +217,7 @@ export class Segmenter {
   private preroll: Int16Array[] = [];
   private frameBuf = new Int16Array(FRAME_SAMPLES);
   private frameLen = 0;
+  private audioClock = 0;
 
   constructor(ev: SegmenterEvents, opts: SegmenterOptions = {}) {
     this.ev = ev;
@@ -243,7 +245,13 @@ export class Segmenter {
   }
 
   private processFrame(frame: Int16Array) {
-    const now = this.now();
+    // Audio clock: frames are 20 ms apart in audio time even when the event loop delivers them in a burst after a
+    // stall (3D rendering, GC). Wall-clock stamps would squeeze a 300 ms breath into a fake 600 ms "end of speech".
+    const wall = this.now();
+    this.audioClock = this.audioClock
+      ? Math.min(wall, Math.max(this.audioClock + FRAME_MS, wall - TUNING.MAX_AUDIO_LAG_MS))
+      : wall;
+    const now = this.audioClock;
     let sum = 0;
     for (let k = 0; k < frame.length; k++) sum += frame[k] * frame[k];
     const rms = Math.sqrt(sum / frame.length) / 32768;
@@ -284,7 +292,7 @@ export class Segmenter {
         this.tryPunctEarly(now);
       }
     }
-    this.tick(now);
+    this.tick(wall);
   }
 
   private fireStreamEnd() {
