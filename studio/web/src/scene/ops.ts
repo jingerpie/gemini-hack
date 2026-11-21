@@ -104,6 +104,24 @@ function liftMaterial(c: Record<string, unknown>): unknown {
   return lifted;
 }
 
+// glb: an absolute http(s) URL (merchant CDN), or "" / null to clear. product: kept as given (plain JSON object).
+function sanitizeGlb(v: unknown): string | null | undefined {
+  if (v === null || v === "") return null;
+  if (typeof v !== "string") return undefined;
+  const t = v.trim();
+  return /^https?:\/\//i.test(t) || t.startsWith("/") || t.startsWith("blob:") ? t : undefined;
+}
+
+function sanitizeProduct(v: unknown): SceneObject["product"] | null | undefined {
+  if (v === null) return null;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(v));
+  } catch {
+    return undefined;
+  }
+}
+
 function sanitizeNewObject(id: string, raw: unknown): SceneObject | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -121,6 +139,10 @@ function sanitizeNewObject(id: string, raw: unknown): SceneObject | null {
   const mat = mergeMaterial(undefined, liftMaterial(r));
   if (mat) o.material = mat;
   if (typeof r.description === "string") o.description = r.description;
+  const glb = sanitizeGlb(r.glb);
+  if (glb) o.glb = glb;
+  const product = sanitizeProduct(r.product);
+  if (product) o.product = product;
   if (shape === "custom") o.status = r.status === "failed" ? "failed" : "building";
   return o;
 }
@@ -146,6 +168,16 @@ function applyObjectChanges(o: SceneObject, raw: unknown): void {
     else delete o.material;
   }
   if (typeof c.description === "string") o.description = c.description;
+  if ("glb" in c) {
+    const g = sanitizeGlb(c.glb);
+    if (g) o.glb = g;
+    else if (g === null) delete o.glb;
+  }
+  if ("product" in c) {
+    const pr = sanitizeProduct(c.product);
+    if (pr) o.product = pr;
+    else if (pr === null) delete o.product;
+  }
   if (STATUSES.includes(c.status as Status)) o.status = c.status as Status;
   if (o.shape === "custom") {
     // A new description (or turning a primitive into a custom object) means a new model is on its way.

@@ -7,6 +7,8 @@ import type {
   DecalResponse,
   PatchRequest,
   PatchResponse,
+  RenderRequest,
+  RenderResponse,
   SourceEvent,
   SourceRequest,
   VerifyRequest,
@@ -21,6 +23,8 @@ export interface Api {
   verify(req: VerifyRequest, signal?: AbortSignal): Promise<VerifyResponse>;
   /** "Shop the look": streams SourceEvents; resolves when the stream ends. Optional (older mocks lack it). */
   source?(req: SourceRequest, signal: AbortSignal, onEvent: (e: SourceEvent) => void): Promise<void>;
+  /** Photoreal render of a canvas screenshot. Optional (mocks may lack it). */
+  render?(req: RenderRequest, signal: AbortSignal): Promise<RenderResponse>;
 }
 
 const PARAMS = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
@@ -28,6 +32,7 @@ const PARAMS = new URLSearchParams(typeof location !== "undefined" ? location.se
 const VIA = ["direct", "agent", "race"].includes(PARAMS.get("via") ?? "") ? PARAMS.get("via") : null;
 // The "designer" path inside /api/patch can take ~30 s for whole-room requests.
 export const PATCH_TIMEOUT_MS = 45000;
+export const RENDER_TIMEOUT_MS = 50000;
 
 /** Server unreachable / restarting (fetch TypeError, or the Vite proxy's 50x with no body). Worth one retry. */
 function isConnectionError(err: unknown): boolean {
@@ -162,4 +167,16 @@ export const httpApi: Api = {
   source: (req, signal, onEvent) => postSse<SourceEvent>(`/api/source${VIA ? `?via=${VIA}` : ""}`, req, signal, onEvent),
   decal: (req, signal) => postJson<DecalResponse>("/api/decal", req, signal),
   verify: (req, signal) => postJson<VerifyResponse>("/api/verify", req, signal),
+  async render(req, signal) {
+    const t = withTimeout(signal, RENDER_TIMEOUT_MS);
+    try {
+      return await postJson<RenderResponse>("/api/render", req, t.signal);
+    } catch (err) {
+      if (t.timedOut() && !signal.aborted) throw new Error(`render timed out after ${RENDER_TIMEOUT_MS / 1000} s`);
+      if (err instanceof TypeError && !signal.aborted) throw new Error("server unreachable (is :8787 running?)");
+      throw err;
+    } finally {
+      t.clear();
+    }
+  },
 };

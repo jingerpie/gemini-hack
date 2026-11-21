@@ -17,12 +17,17 @@ import type {
   Product,
   Scene,
   SourceEvent,
+  View,
 } from "../types";
 
 /** Engine extras the real engine (scene/engine.ts StudioEngine) has; mocks may lack them. */
 type EngineExtras = {
   setAssetCode(objectId: string, code: string, description?: string): { ok: boolean; error?: string };
   getAssetCode?(objectId: string): string | undefined;
+  /** Apply ops one by one, `gapMs` apart, as ONE undo step. Resolves when all are applied. */
+  applyOpsStaggered?(ops: Op[], gapMs: number): Promise<void>;
+  screenshot(opts?: { maxSide?: number; quality?: number }): string;
+  getView?(): View;
   setScene?(scene: Scene): void;
   resetView?(): void;
 };
@@ -39,8 +44,51 @@ export type ShopGroup = {
 
 const URL_PARAMS = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
 
-export type TaskKind = "patch" | "asset" | "decal" | "source";
-export type TaskStatus = "running" | "held" | "done" | "nochange" | "failed" | "cancelled" | "superseded";
+export type TaskKind = "patch" | "asset" | "decal" | "source" | "render";
+export type TaskStatus = "running" | "held" | "queued" | "done" | "nochange" | "failed" | "cancelled" | "superseded";
+
+/** A patch that has been pending this long is probably on the designer path (whole-room requests). */
+export const DESIGNER_HINT_MS = 6000;
+/** At most this many jobs of each kind run at once; the rest wait as "queued". */
+const MAX_RUNNING: Record<"asset" | "decal", number> = { asset: 3, decal: 3 };
+/** Designer responses: start shopping only for the first N new custom objects. */
+const DESIGNER_SHOP_CAP = 2;
+/** Gap between ops when a designer response assembles the room. */
+const STAGGER_MS = 150;
+
+export const isDesignerModel = (model?: string, brief?: string) => !!brief || (!!model && !/hydrogen/i.test(model));
+
+export type RenderView = { taskId: string; before: string; after: string; model: string; ms: number };
+
+/** Spoken/typed commands handled on the client (exact-ish match), never sent to /api/patch. */
+const RENDER_COMMANDS = [
+  "render it",
+  "render",
+  "render this",
+  "render the room",
+  "render this room",
+  "show me a photo",
+  "show me a picture",
+  "show me a photo of it",
+  "show me a photo of the room",
+  "make it photorealistic",
+  "make it photo realistic",
+  "make this photorealistic",
+  "make it look photorealistic",
+  "photorealistic",
+  "photoreal",
+  "make it photoreal",
+  "take a photo",
+];
+export function isRenderCommand(text: string): boolean {
+  const n = text
+    .toLowerCase()
+    .replace(/[^a-z ]+/g, " ")
+    .replace(/\b(please|can you|could you|now|okay|ok|hey|just|so)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return RENDER_COMMANDS.includes(n);
+}
 export type VerifyState =
   | { state: "pending" }
   | { state: "ok" | "unsure" | "mismatch"; score: number }
@@ -64,7 +112,10 @@ export type Task = {
   verify?: VerifyState;
   opsCount?: number;
   claim?: string;
-  model?: string; // patch: which model answered (orchestrator or designer)
+  model?: string; // patch: which model answered (orchestrator or designer); render: image model
+  designer?: boolean; // patch answered by the designer model
+  brief?: string; // designer: the brief the orchestrator handed it
+  say?: string; // patch: the assistant line
 };
 
 export type TranscriptLine =
@@ -84,6 +135,7 @@ export type StudioState = {
   patchMs: number[]; // completed patch latencies, oldest first
   shopEnabled: boolean;
   shop: ShopGroup[];
+  render: RenderView | null; // the photoreal render currently shown over the 3D view
 };
 
 type Internal = {
@@ -165,6 +217,13 @@ export class TaskManager {
   private initialScene: Scene | null = null;
   private shotCheap = URL_PARAMS.get("shot") !== "0";
   private shotSlow = 0;
+  /** size of the last patch screenshot (KB) and how long it took (ms), for diagnostics */
+  lastShot: { kb: number; ms: number } | null = null;
+  /** history items of applied patches, newest last, so undo can mark the one it reverted */
+  private undoable: HistoryItem[] = [];
+  private renders = new Map<string, RenderView>();
+  private renderShown: RenderView | null = null;
+  private jobQueue: { taskId: string; kind: "asset" | "decal"; start: () => void; excludeLane: number }[] = [];
 
   constructor(api: Api | null = null) {
     this.api = api;
@@ -236,7 +295,7 @@ export class TaskManager {
     const tasks = this.tasks.map((t) => ({ ...t }));
     const done = tasks.filter((t) => t.status === "done" || t.status === "nochange").length;
     const failed = tasks.filter((t) => t.status === "failed").length;
-    const running = tasks.filter((t) => t.status === "running" || t.status === "held").length;
+    const running = tasks.filter((t) => t.status === "running" || t.status === "held" || t.status === "queued").length;
     return {
       tasks,
       transcript: this.transcript.slice(),
@@ -248,6 +307,7 @@ export class TaskManager {
       patchMs: this.patchMs.slice(),
       shopEnabled: this.shopEnabled,
       shop: this.shop.map((g) => ({ ...g, products: g.products.slice() })),
+      render: this.renderShown,
     };
   }
 
@@ -261,7 +321,7 @@ export class TaskManager {
   /** Lowest lane not used by a running task (and not in `exclude`). */
   private allocLane(exclude: number[] = []): number {
     const busy = new Set(exclude);
-    for (const t of this.tasks) if (t.endAt == null) busy.add(t.lane);
+    for (const t of this.tasks) if (t.endAt == null && t.status !== "queued") busy.add(t.lane);
     let lane = 0;
     while (busy.has(lane)) lane++;
     return lane;
@@ -294,7 +354,87 @@ export class TaskManager {
       this.emit();
       return;
     }
+    if (isRenderCommand(clean)) {
+      const line: TranscriptLine = { id: uid("l"), kind: "user", text: clean, at: Date.now() };
+      this.transcript.push(line);
+      line.taskId = this.render() ?? undefined;
+      this.emit();
+      return;
+    }
     this.dispatch(clean);
+  }
+
+  // ---------- photoreal render ----------
+  /** Screenshot the canvas, ask /api/render for a photoreal picture of it, show it over the 3D view. */
+  render(): string | null {
+    this.startClock();
+    const abort = new AbortController();
+    const task = this.addTask({
+      id: uid("r"),
+      kind: "render",
+      title: "Photoreal render",
+      startAt: now(),
+      status: "running",
+      statusLine: "rendering with the image model…",
+    });
+    this.internals.set(task.id, { task, abort });
+    const api = this.api;
+    let before = "";
+    let scene: Scene | null = null;
+    try {
+      if (this.engine) {
+        before = this.engine.screenshot();
+        scene = this.engine.getScene();
+      }
+    } catch (err) {
+      console.warn("[studio] screenshot failed", err);
+    }
+    const fail = (msg: string) => {
+      if (!this.isLive(task.id)) return;
+      const end = now();
+      this.update(task.id, { status: "failed", endAt: end, ms: Math.round(end - task.startAt), statusLine: msg, error: msg });
+      this.log("render", `render FAILED: ${msg}`);
+      this.emit();
+    };
+    if (!api?.render) {
+      fail("render not available");
+      return task.id;
+    }
+    if (!before || !scene) {
+      fail("engine not ready");
+      return task.id;
+    }
+    void api
+      .render({ image: before, scene }, abort.signal)
+      .then((res) => {
+        if (!this.isLive(task.id)) return;
+        if (!res?.dataUrl) throw new Error("empty image");
+        const end = now();
+        const ms = Math.round(end - task.startAt);
+        const view: RenderView = { taskId: task.id, before, after: res.dataUrl, model: res.model || "", ms };
+        this.renders.set(task.id, view);
+        if (this.renders.size > 6) this.renders.delete(this.renders.keys().next().value as string);
+        this.renderShown = view;
+        this.update(task.id, {
+          status: "done",
+          endAt: end,
+          ms,
+          model: res.model || undefined,
+          statusLine: `render ready${res.model ? ` · ${res.model}` : ""} · click to view`,
+        });
+        this.log("render", `render ${res.model || ""}`.trim(), ms);
+      })
+      .catch((err: unknown) => {
+        if (abort.signal.aborted) return;
+        fail(errMsg(err));
+      });
+    return task.id;
+  }
+
+  /** Show a finished render again (card click), or hide the overlay (null). */
+  showRender(taskId: string | null) {
+    this.renderShown = taskId ? this.renders.get(taskId) ?? null : null;
+    this.emit();
   }
 
   setShopEnabled(on: boolean) {
@@ -304,15 +444,19 @@ export class TaskManager {
 
   /** "New room": cancel everything, clear tasks/transcript/log/history, put the default scene back. */
   newRoom() {
-    for (const t of this.tasks.slice()) if (t.status === "running" || t.status === "held") this.cancel(t.id);
+    for (const t of this.tasks.slice()) if (t.status === "running" || t.status === "held" || t.status === "queued") this.cancel(t.id);
     this.tasks = [];
     this.transcript = [];
     this.interim = "";
     this.opsLog = [];
     this.history = [];
+    this.undoable = [];
     this.patchMs = [];
     this.shop = [];
     this.shopSeen.clear();
+    this.jobQueue = [];
+    this.renders.clear();
+    this.renderShown = null;
     this.activeJob.clear();
     this.internals.clear();
     this.clockStart = null;
@@ -337,6 +481,9 @@ export class TaskManager {
     if (!this.engine) return false;
     const ok = this.engine.undo();
     if (ok) {
+      // tell the server's context that the newest applied change was reverted
+      const item = this.undoable.pop();
+      if (item && !item.applied.startsWith("UNDONE")) item.applied = `UNDONE (reverted by the user): ${item.applied}`.slice(0, 600);
       this.log("undo", "undo  ← restored previous scene");
       this.emit();
     }
@@ -345,6 +492,10 @@ export class TaskManager {
 
   focus(taskId: string) {
     const t = this.tasks.find((x) => x.id === taskId);
+    if (t?.kind === "render") {
+      if (this.renders.has(taskId)) this.showRender(taskId);
+      return;
+    }
     if (t?.targetId && this.engine) {
       try {
         this.engine.focus(t.targetId);
@@ -376,30 +527,38 @@ export class TaskManager {
     this.emit();
 
     const scene = this.engine ? this.engine.getScene() : null;
-    const history = this.history.slice(-6);
+    const history = this.history.slice(-8);
+    // what the user was looking at / pointing at when they spoke (not when the request is finally sent)
+    let view: View | undefined;
+    try {
+      view = (this.engine as (Engine & Partial<EngineExtras>) | null)?.getView?.() ?? undefined;
+    } catch {
+      view = undefined;
+    }
     const api = this.api;
     if (!scene || !api) {
       this.failPatch(task.id, seq, "engine not ready");
       return task.id;
     }
-    // PatchRequest.image: a canvas screenshot, only while it stays cheap (< 50 ms); ?shot=0 disables it.
+    // PatchRequest.image: a downscaled canvas screenshot (long side <= 512 px, JPEG 0.6) with every request.
+    // Guard: if it is repeatedly slow (> 150 ms, e.g. a software-rendered GPU), stop taking it. ?shot=0 disables it.
     let image: string | undefined;
     if (this.shotCheap && this.engine) {
       const t0 = now();
       try {
-        image = this.engine.screenshot() || undefined;
+        image = (this.engine as Engine & Partial<EngineExtras>).screenshot({ maxSide: 512, quality: 0.6 }) || undefined;
       } catch {
         image = undefined;
       }
       const dt = now() - t0;
-      if (dt > 50) {
+      if (image) this.lastShot = { kb: Math.round((image.length * 0.75) / 1024), ms: Math.round(dt) };
+      if (dt > 150) {
         this.shotSlow++;
-        if (this.shotSlow >= 2) this.shotCheap = false; // one slow frame can be a hiccup; two means skip it
-        image = undefined;
-      }
+        if (this.shotSlow >= 3) this.shotCheap = false; // a hiccup is fine; three slow ones means skip it from now on
+      } else this.shotSlow = 0;
     }
     api
-      .patch({ scene, history, utterance, ...(image ? { image } : {}) }, abort.signal)
+      .patch({ scene, history, utterance, ...(image ? { image } : {}), ...(view ? { view } : {}) }, abort.signal)
       .then((res) => this.onPatchReturn(task.id, seq, res))
       .catch((err: unknown) => {
         if (abort.signal.aborted) return; // cancel() already settled it
@@ -424,6 +583,9 @@ export class TaskManager {
       statusLine: waiting ? `holding ${ops.length} op${ops.length === 1 ? "" : "s"} for earlier command` : "applying",
       targetId: pickTarget(ops),
       model: res.model || undefined,
+      designer: isDesignerModel(res.model, res.brief),
+      brief: res.brief?.trim() || undefined,
+      say: res.say?.trim() || undefined,
     });
     this.patchMs.push(ms);
     if (res.say && res.say.trim()) {
@@ -438,7 +600,12 @@ export class TaskManager {
     }
     // hand-off: jobs drop from this exact return point
     const parentLane = t.lane;
-    for (const job of jobs) this.startJob(job, taskId, end, parentLane, ops);
+    const designer = isDesignerModel(res.model, res.brief);
+    let shops = 0;
+    for (const job of jobs) {
+      const allowShop = !designer || shops < DESIGNER_SHOP_CAP;
+      if (this.startJob(job, taskId, end, parentLane, ops, allowShop)) shops++;
+    }
     this.settled.set(seq, { taskId, res: { ...res, ops, jobs } });
     this.flush();
   }
@@ -471,9 +638,19 @@ export class TaskManager {
         continue;
       }
       let ok = true;
+      let pending: Promise<void> | null = null;
+      let before: Scene | null = null;
+      try {
+        before = res.ops.length && this.engine ? this.engine.getScene() : null;
+      } catch {
+        before = null;
+      }
       if (res.ops.length && this.engine) {
         try {
-          this.engine.applyOps(res.ops);
+          const ex = this.engine as Engine & Partial<EngineExtras>;
+          // designer responses assemble visibly (one op every ~150 ms) but stay ONE undo step
+          if (t.designer && res.ops.length > 1 && ex.applyOpsStaggered) pending = ex.applyOpsStaggered(res.ops, STAGGER_MS);
+          else this.engine.applyOps(res.ops);
         } catch (err) {
           ok = false;
           this.update(taskId, { status: "failed", statusLine: `applyOps: ${errMsg(err)}`, error: errMsg(err) });
@@ -482,7 +659,24 @@ export class TaskManager {
       if (ok) {
         const summary = res.ops.map(summarizeOp);
         for (const s of summary) this.log("patch", s, t.ms);
-        this.history.push({ u: t.utterance ?? "", applied: summary.length ? summary.join("; ").slice(0, 400) : "(no change)" });
+        const ids: string[] = [];
+        for (const op of res.ops) {
+          const id = typeof op.id === "string" ? op.id : "";
+          if (!id) continue;
+          const at = ids.indexOf(id);
+          if (at >= 0) ids.splice(at, 1);
+          ids.push(id); // newest last
+        }
+        const item: HistoryItem = {
+          u: t.utterance ?? "",
+          applied: res.ops.length ? historyLine(res.ops, before).slice(0, 600) : "(no change)",
+          ...(ids.length ? { ids } : {}),
+        };
+        this.history.push(item);
+        if (res.ops.length) {
+          this.undoable.push(item);
+          if (this.undoable.length > 80) this.undoable.shift();
+        }
         if (this.history.length > 30) this.history.splice(0, this.history.length - 30);
         const n = res.ops.length;
         this.update(taskId, {
@@ -492,22 +686,31 @@ export class TaskManager {
             : res.say?.trim() || "no change",
         });
         // Patches that hand off jobs are verified when the job lands (a placeholder would score low).
-        if (n && !res.jobs.length) this.verify(taskId, t.utterance ?? "");
+        if (n && !res.jobs.length && !pending) this.verify(taskId, t.utterance ?? "");
       }
-      internal?.resolveApplied?.(ok);
+      if (pending) {
+        const resolve = internal?.resolveApplied;
+        pending.then(
+          () => resolve?.(ok),
+          () => resolve?.(ok),
+        );
+      } else internal?.resolveApplied?.(ok);
     }
     // anything still parked keeps showing "held"
     this.emit();
   }
 
   // ---------- background jobs ----------
-  private startJob(job: Job, parentId: string, at: number, parentLane: number, ops: Op[]) {
+  /** Returns true when it also started a shopping job. */
+  private startJob(job: Job, parentId: string, at: number, parentLane: number, ops: Op[], allowShop = true): boolean {
     const parent = this.internals.get(parentId);
     const key = job.kind === "asset" ? `asset:${job.objectId}` : `decal:${job.decalId}`;
     const prev = this.activeJob.get(key);
     if (prev) this.supersede(prev);
 
     const abort = new AbortController();
+    const kind = job.kind;
+    const queued = this.runningCount(kind) >= MAX_RUNNING[kind];
     const task = this.addTask(
       {
         id: uid(job.kind === "asset" ? "a" : "d"),
@@ -516,8 +719,12 @@ export class TaskManager {
         parentId,
         targetId: job.kind === "asset" ? job.objectId : job.decalId,
         startAt: at,
-        status: "running",
-        statusLine: job.kind === "asset" ? "dispatching to managed agent…" : "generating image…",
+        status: queued ? "queued" : "running",
+        statusLine: queued
+          ? `waiting for a free slot (max ${MAX_RUNNING[kind]} at once)`
+          : job.kind === "asset"
+            ? "dispatching to managed agent…"
+            : "generating image…",
         claim:
           job.kind === "asset"
             ? `a ${job.name}: ${job.description}`
@@ -530,19 +737,64 @@ export class TaskManager {
     this.activeJob.set(key, task.id);
 
     const applied = parent?.applied ?? Promise.resolve(true);
-    if (job.kind === "asset") this.runAsset(task.id, job, abort, applied, key);
-    else this.runDecal(task.id, job, abort, applied, key);
+    const start = () => {
+      if (job.kind === "asset") void this.runAsset(task.id, job, abort, applied, key);
+      else void this.runDecal(task.id, job, abort, applied, key);
+    };
+    // queued jobs sit off the strip until a slot frees; their bracket drops when they actually start
+    if (queued) this.jobQueue.push({ taskId: task.id, kind, start, excludeLane: parentLane });
+    else start();
 
     // Shop the look: only for a NEWLY ADDED custom object (not rebuilds / moves / recolours).
     if (
       job.kind === "asset" &&
+      allowShop &&
       this.shopEnabled &&
       this.api?.source &&
       ops.some((op) => op.op === "add" && op.id === job.objectId) &&
       !this.shop.some((g) => g.objectId === job.objectId)
     ) {
       this.startSource(job, parentId, at, parentLane, applied);
+      return true;
     }
+    return false;
+  }
+
+  private runningCount(kind: "asset" | "decal") {
+    let n = 0;
+    for (const t of this.tasks) if (t.kind === kind && t.status === "running") n++;
+    return n;
+  }
+
+  /** Start queued jobs while there are free slots. */
+  private pump() {
+    for (let i = 0; i < this.jobQueue.length; ) {
+      const q = this.jobQueue[i];
+      const t = this.tasks.find((x) => x.id === q.taskId);
+      if (!t || t.status !== "queued") {
+        this.jobQueue.splice(i, 1);
+        continue;
+      }
+      if (this.runningCount(q.kind) >= MAX_RUNNING[q.kind]) {
+        i++;
+        continue;
+      }
+      this.jobQueue.splice(i, 1);
+      t.status = "running";
+      t.startAt = now();
+      t.lane = this.allocLaneFor(t.id, [q.excludeLane]);
+      t.statusLine = q.kind === "asset" ? "dispatching to managed agent…" : "generating image…";
+      this.emit();
+      q.start();
+    }
+  }
+
+  private allocLaneFor(selfId: string, exclude: number[]): number {
+    const busy = new Set(exclude);
+    for (const t of this.tasks) if (t.id !== selfId && t.endAt == null && t.status !== "queued") busy.add(t.lane);
+    let lane = 0;
+    while (busy.has(lane)) lane++;
+    return lane;
   }
 
   private startSource(job: Extract<Job, { kind: "asset" }>, parentId: string, at: number, parentLane: number, applied: Promise<boolean>) {
@@ -652,12 +904,15 @@ export class TaskManager {
     const t = this.tasks.find((x) => x.id === taskId);
     const internal = this.internals.get(taskId);
     if (!t || t.endAt != null) return;
-    this.update(taskId, { status: "superseded", endAt: now(), ms: Math.round(now() - t.startAt), statusLine: "superseded by a newer request" });
+    const wasQueued = t.status === "queued";
+    this.update(taskId, { status: "superseded", endAt: now(), ms: wasQueued ? 0 : Math.round(now() - t.startAt), statusLine: "superseded by a newer request" });
     internal?.abort.abort();
+    queueMicrotask(() => this.pump());
   }
 
   private finishJob(key: string, taskId: string) {
     if (this.activeJob.get(key) === taskId) this.activeJob.delete(key);
+    queueMicrotask(() => this.pump());
   }
 
   private isLive(taskId: string) {
@@ -830,7 +1085,7 @@ export class TaskManager {
   cancel(taskId: string) {
     const t = this.tasks.find((x) => x.id === taskId);
     const internal = this.internals.get(taskId);
-    if (!t || !internal || (t.status !== "running" && t.status !== "held")) return;
+    if (!t || !internal || (t.status !== "running" && t.status !== "held" && t.status !== "queued")) return;
     if (t.kind === "patch") {
       internal.abort.abort();
       // abort jobs it already spawned
@@ -839,8 +1094,10 @@ export class TaskManager {
       return;
     }
     const end = now();
-    this.update(taskId, { status: "cancelled", endAt: end, ms: Math.round(end - t.startAt), statusLine: "cancelled" });
+    const wasQueued = t.status === "queued";
+    this.update(taskId, { status: "cancelled", endAt: end, ms: wasQueued ? 0 : Math.round(end - t.startAt), statusLine: "cancelled" });
     internal.abort.abort();
+    if (t.kind === "render") return;
     if (t.kind === "asset" && t.targetId) this.safe(() => this.engine?.setAssetFailed(t.targetId!));
     if (t.kind === "decal" && t.targetId) this.safe(() => this.engine?.setDecalFailed(t.targetId!));
     if (t.kind === "source") {
@@ -878,6 +1135,51 @@ export class TaskManager {
       }
     })();
   }
+}
+
+/** History line for the server: names every id that was added / changed / removed, e.g.
+ *  "add throne1 (throne); surface wall_back color; remove lamp2 (floor lamp)". */
+export function historyLine(ops: Op[], before: Scene | null): string {
+  const objName = (id: string) => before?.objects.find((o) => o.id === id)?.name;
+  const decName = (id: string) => before?.decals.find((d) => d.id === id)?.name;
+  const keys = (c: object) => Object.keys(c).join(" ");
+  const parts = ops.map((op) => {
+    switch (op.op) {
+      case "add":
+        return `add ${op.id} (${op.object.name}${op.object.shape === "custom" ? ", custom" : ""})`;
+      case "update": {
+        const n = op.changes.name ?? objName(op.id);
+        const ch = op.changes as Record<string, unknown>;
+        const what = Object.keys(ch)
+          .map((k) => (k === "color" ? `color ${String(ch[k])}` : k === "material" ? `material ${compact(ch[k])}` : k))
+          .join(" ");
+        return `update ${op.id}${n ? ` (${n})` : ""} ${what}`;
+      }
+      case "remove": {
+        const n = objName(op.id);
+        return `remove ${op.id}${n ? ` (${n})` : ""}`;
+      }
+      case "surface": {
+        const c = op.changes as Record<string, unknown>;
+        const what = Object.keys(c)
+          .map((k) => (k === "color" ? `color ${String(c[k])}` : k === "material" ? `material ${compact(c[k])}` : k))
+          .join(" ");
+        return `surface ${op.id} ${what || keys(c)}`;
+      }
+      case "add_decal":
+        return `add_decal ${op.id} (${op.decal.name}) on ${op.decal.surface}`;
+      case "update_decal": {
+        const n = op.changes.name ?? decName(op.id);
+        return `update_decal ${op.id}${n ? ` (${n})` : ""} ${keys(op.changes)}`;
+      }
+      case "remove_decal": {
+        const n = decName(op.id);
+        return `remove_decal ${op.id}${n ? ` (${n})` : ""}`;
+      }
+    }
+    return "";
+  });
+  return parts.filter(Boolean).join("; ");
 }
 
 function pickTarget(ops: Op[]): string | undefined {

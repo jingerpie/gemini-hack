@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { ShopGroup, StudioState, Task, TaskManager } from "../lib/taskManager";
+import { DESIGNER_HINT_MS, type ShopGroup, type StudioState, type Task, type TaskManager } from "../lib/taskManager";
 import type { Product } from "../types";
 import { fmtMs } from "./Timeline";
 
 export function Sidebar({ state, manager }: { state: StudioState; manager: TaskManager }) {
-  const [opsOpen, setOpsOpen] = useState(true);
+  // short screens: the ops log starts collapsed so tasks and products get the room
+  const [opsOpen, setOpsOpen] = useState(() => typeof window === "undefined" || window.innerHeight >= 860);
   return (
     <aside className="sidebar">
       <section className="panel transcript-panel">
@@ -132,11 +133,14 @@ function useTick(active: boolean, ms = 100) {
 }
 
 function TaskList({ tasks, manager }: { tasks: Task[]; manager: TaskManager }) {
-  const anyRunning = tasks.some((t) => t.status === "running" || t.status === "held");
+  const isLive = (t: Task) => t.status === "running" || t.status === "held" || t.status === "queued";
+  const anyRunning = tasks.some(isLive);
   useTick(anyRunning);
-  const running = tasks.filter((t) => t.status === "running" || t.status === "held").sort((a, b) => b.startAt - a.startAt);
+  const running = tasks
+    .filter(isLive)
+    .sort((a, b) => (a.status === "queued" ? 1 : 0) - (b.status === "queued" ? 1 : 0) || b.startAt - a.startAt);
   const rest = tasks
-    .filter((t) => t.status !== "running" && t.status !== "held")
+    .filter((t) => !isLive(t))
     .sort((a, b) => b.startAt - a.startAt)
     .slice(0, 60);
   if (!tasks.length) return <div className="tasks"><p className="empty">Tasks you trigger show up here.</p></div>;
@@ -152,6 +156,7 @@ function TaskList({ tasks, manager }: { tasks: Task[]; manager: TaskManager }) {
 const STATUS_WORD: Record<Task["status"], string> = {
   running: "",
   held: "held",
+  queued: "queued",
   done: "",
   nochange: "no change",
   failed: "failed",
@@ -163,25 +168,42 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
   const live = t.status === "running" || t.status === "held";
   const elapsed = (t.endAt ?? performance.now()) - t.startAt;
   const title = t.kind === "patch" ? `“${t.title}”` : t.title;
-  const cancellable = t.status === "running" || t.status === "held";
+  const cancellable = t.status === "running" || t.status === "held" || t.status === "queued";
+  const planning = t.kind === "patch" && t.status === "running" && performance.now() - t.startAt > DESIGNER_HINT_MS;
+  const designer = t.kind === "patch" && (t.designer || planning);
+  const focusable = !!t.targetId || (t.kind === "render" && t.status === "done");
+  const statusLine = planning ? "designer is planning the room…" : t.statusLine;
   return (
     <div
-      className={`card card-${t.kind} st-${t.status} ${t.targetId ? "focusable" : ""}`}
+      className={`card card-${t.kind} st-${t.status} ${designer ? "card-designer" : ""} ${planning ? "planning" : ""} ${focusable ? "focusable" : ""}`}
       onClick={() => manager.focus(t.id)}
-      title={t.targetId ? `Focus ${t.targetId}` : undefined}
+      title={t.kind === "render" ? (t.status === "done" ? "Show the render" : undefined) : t.targetId ? `Focus ${t.targetId}` : undefined}
     >
       <div className="card-top">
-        <span className={`dot dot-${t.kind} ${t.status === "running" ? "pulse" : ""}`} />
+        <span className={`dot dot-${designer ? "designer" : t.kind} ${t.status === "running" ? "pulse" : ""}`} />
         <span className="card-title">{title}</span>
         <span className="card-time">
-          {t.status === "running" ? fmtMs(performance.now() - t.startAt) : t.ms != null ? fmtMs(t.ms) : fmtMs(elapsed)}
+          {t.status === "running" ? fmtMs(performance.now() - t.startAt) : t.status === "queued" ? "—" : t.ms != null ? fmtMs(t.ms) : fmtMs(elapsed)}
         </span>
       </div>
+      {t.kind === "patch" && t.designer && t.model && (
+        <div className="card-designer-label">designer · {t.model}</div>
+      )}
+      {t.kind === "patch" && t.designer && (t.brief || t.say) && (
+        <div className="card-brief">
+          {t.brief && (
+            <p className="brief" title={t.brief}>
+              <b>brief</b> {t.brief}
+            </p>
+          )}
+          {t.say && <p className="say">{t.say}</p>}
+        </div>
+      )}
       <div className="card-bottom">
-        <span className={`card-status ${t.status === "failed" ? "bad" : ""}`} title={t.statusLine}>
+        <span className={`card-status ${t.status === "failed" ? "bad" : ""}`} title={statusLine}>
           {STATUS_WORD[t.status] && <em className={`tag tag-${t.status}`}>{STATUS_WORD[t.status]}</em>}
-          {t.status === "running" && t.kind !== "patch" && <span className="spinner" />}
-          {t.statusLine}
+          {(t.status === "running" && t.kind !== "patch") || planning ? <span className="spinner" /> : null}
+          {statusLine}
         </span>
         <span className="card-actions">
           {t.verify && <VerifyBadge v={t.verify} />}

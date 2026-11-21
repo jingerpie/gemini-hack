@@ -12,11 +12,12 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import type { Decal, Engine, Scene, SceneObject, Shape, SurfaceId, Vec3 } from "../types";
+import type { Decal, Engine, Op, Scene, SceneObject, Shape, SurfaceId, Vec3, View } from "../types";
 import { DEFAULT_SCENE } from "./defaultScene";
 import { applyOpsToScene, clamp, cloneScene, normalizeScene, SURFACE_IDS, WALL_IDS, type WallId } from "./ops";
 import { computeFit, disposeObject, evaluateModelCode, modelTargets, type MatState, type PreparedModel, type StdMat } from "./model";
 import { makeDecalPlaceholderTexture, makeFloorTexture, makeLabel } from "./textures";
+import { keyOutBackground, type KeyedPixels } from "./decalAlpha";
 
 export { DEFAULT_SCENE };
 
@@ -30,7 +31,18 @@ export type StudioEngine = Engine & {
   resetView(): void;
   /** Replace the whole scene (e.g. load). Pushes an undo snapshot. */
   setScene(scene: Scene): void;
+  /** Camera pose and what the cursor is on (raycast at call time from the last pointer position over the canvas). */
+  getView(): View;
+  /** Hovered object / decal / surface (throttled ~10/s). Called with null when the cursor leaves everything. */
+  onHover(fn: (h: HoverInfo | null) => void): () => void;
+  /** ONE undo step; ops applied one at a time gapMs apart. Other mutations flush the rest first; undo cancels it. */
+  applyOpsStaggered(ops: Op[], gapMs: number): Promise<void>;
+  /** With maxSide: downscaled JPEG (quality default 0.7). Without args: unchanged full-size JPEG at 0.88. */
+  screenshot(opts?: { maxSide?: number; quality?: number }): string;
 };
+
+export type HoverInfo = { id: string; name: string; kind: "object" | "decal" | "surface" };
+const SURFACE_NAMES: Record<SurfaceId, string> = { wall_back: "back wall", wall_left: "left wall", wall_right: "right wall", floor: "floor", ceiling: "ceiling" };
 
 // ---------------------------------------------------------------------------------------------------------------
 // small helpers
@@ -126,11 +138,64 @@ function writeMat(m: StdMat, s: MatState, baseTransparent = false) {
   m.depthWrite = baseTransparent ? m.depthWrite : !tr;
   const phys = m as THREE.MeshPhysicalMaterial;
   if (phys.isMeshPhysicalMaterial) {
-    // Surfaces: glossy finishes get a lacquer clearcoat so "shiny" reads strongly.
+    // Glossy finishes get a lacquer clearcoat so "shiny" reads strongly. Dark glossy DIELECTRICS (black lacquer) are
+    // tamed: a dielectric reflects ~4% head-on, and its grazing Fresnel must not turn a black wall into a mirror of
+    // the oak floor, so the clearcoat, the base specular (F0 and F90) and the specular env strength drop with
+    // darkness. Metals keep full coloured reflection. Glossy floors get a boosted, sharp reflection (see boxEnv).
     const gloss = THREE.MathUtils.smoothstep(0.5 - s.roughness, 0, 0.4);
-    phys.clearcoat = gloss;
-    phys.clearcoatRoughness = Math.max(0.02, s.roughness * 0.4);
+    const c = s.color;
+    const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; // linear
+    const dark = 1 - THREE.MathUtils.smoothstep(lum, 0.0, 0.2);
+    const tame = gloss * dark * (1 - s.metalness);
+    const floor = phys.userData.surface === "floor";
+    phys.clearcoat = gloss * (1 - 0.6 * tame);
+    phys.clearcoatRoughness = Math.max(0.02, s.roughness * (floor ? 0.25 : 0.4));
+    phys.specularIntensity = 1 - 0.5 * tame;
+    const u = phys.userData.specEnv as { value: number } | undefined;
+    if (u) u.value = floor ? 1 + 0.8 * gloss : 1 - 0.7 * tame;
   }
+}
+
+// Box-projected (parallax-corrected) reflections for the room surfaces: the room cube capture is re-projected onto
+// the room box, so a shiny floor mirrors the walls and furniture in the right place and a glossy wall reflects the
+// floor only near its bottom edge (an unprojected cube map smears the floor across the whole wall at grazing angles).
+// uSpecEnv scales only the specular IBL of a surface (scene.environmentIntensity overrides material.envMapIntensity).
+const boxEnv = {
+  uBoxMin: { value: new THREE.Vector3(-3, 0, -2.5) },
+  uBoxMax: { value: new THREE.Vector3(3, 2.8, 2.5) },
+  uBoxCap: { value: new THREE.Vector3() },
+  uBoxOn: { value: 0 },
+};
+
+function patchBoxEnv(m: THREE.MeshPhysicalMaterial) {
+  const specEnv = { value: 1 };
+  m.userData.specEnv = specEnv;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, boxEnv, { uSpecEnv: specEnv });
+    sh.vertexShader = "varying vec3 vBoxWPos;\n" + sh.vertexShader.replace(
+      "#include <project_vertex>",
+      "#include <project_vertex>\n  vBoxWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;",
+    );
+    const chunk = THREE.ShaderChunk.envmap_physical_pars_fragment
+      .replace(
+        "reflectVec = inverseTransformDirection( reflectVec, viewMatrix );",
+        "reflectVec = inverseTransformDirection( reflectVec, viewMatrix );\n\t\t\treflectVec = boxProject( reflectVec );",
+      )
+      .replace("return envMapColor.rgb * envMapIntensity;", "return envMapColor.rgb * envMapIntensity * uSpecEnv;");
+    sh.fragmentShader =
+      `varying vec3 vBoxWPos;
+uniform vec3 uBoxMin; uniform vec3 uBoxMax; uniform vec3 uBoxCap; uniform float uBoxOn; uniform float uSpecEnv;
+vec3 boxProject( vec3 v ) {
+  if ( uBoxOn < 0.5 ) return v;
+  vec3 p = clamp( vBoxWPos, uBoxMin, uBoxMax );
+  vec3 vv = vec3( abs( v.x ) < 1e-4 ? 1e-4 : v.x, abs( v.y ) < 1e-4 ? 1e-4 : v.y, abs( v.z ) < 1e-4 ? 1e-4 : v.z );
+  vec3 t = max( ( uBoxMax - p ) / vv, ( uBoxMin - p ) / vv );
+  float f = min( min( t.x, t.y ), t.z );
+  return normalize( p + vv * f - uBoxCap );
+}
+` + sh.fragmentShader.replace("#include <envmap_physical_pars_fragment>", chunk);
+  };
+  m.customProgramCacheKey = () => "boxenv1";
 }
 
 function lerpState(a: MatState, b: MatState, k: number, out: MatState): MatState {
@@ -336,6 +401,8 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   const surfMats = {} as Record<SurfaceId, THREE.MeshPhysicalMaterial>;
   for (const id of SURFACE_IDS) {
     surfMats[id] = new THREE.MeshPhysicalMaterial({ side: THREE.FrontSide, map: id === "floor" ? floorTex : null });
+    surfMats[id].userData.surface = id;
+    patchBoxEnv(surfMats[id]);
   }
   const roomGroup = new THREE.Group();
   roomGroup.name = "room";
@@ -426,6 +493,8 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     fill.position.set(-W * 0.8, H * 1.1, D / 2 + 3);
     fill.target.position.set(0, H * 0.3, 0);
     practical.position.set(0, H - 0.35, 0);
+    boxEnv.uBoxMin.value.set(-W / 2, 0, -D / 2);
+    boxEnv.uBoxMax.value.set(W / 2, H, D / 2);
     surfApplied.clear();
   }
 
@@ -550,6 +619,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     let fillMesh: Fx["fill"];
     if (kind === "fill") {
       fillMesh = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0x9ad6ff, transparent: true, opacity: 0.15, depthWrite: false }));
+      fillMesh.name = "ghost-fill"; // pointable (a building object has no other mesh)
       fillMesh.renderOrder = 2;
       group.add(fillMesh);
     }
@@ -724,17 +794,33 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   function loadTexture(url: string): Promise<THREE.Texture> {
     let p = textureCache.get(url);
     if (!p) {
-      p = new Promise<THREE.Texture>((resolve, reject) => {
-        new THREE.TextureLoader().load(
-          url,
-          (t) => {
-            t.colorSpace = THREE.SRGBColorSpace;
-            t.anisotropy = 8;
-            resolve(t);
-          },
-          undefined,
-          (e) => reject(e),
-        );
+      // Decode, then (once per url, cached) key out a uniform background so logos sit on the wall without a square.
+      p = new Promise<HTMLImageElement>((resolve, reject) => {
+        const im = new Image();
+        if (!url.startsWith("data:")) im.crossOrigin = "anonymous";
+        im.onload = () => resolve(im);
+        im.onerror = () => reject(new Error("image decode failed"));
+        im.src = url;
+      }).then(async (im) => {
+        await new Promise((r) => setTimeout(r, 0)); // let the current frame go before the pixel work
+        let keyed: KeyedPixels | null = null;
+        try {
+          keyed = keyOutBackground(im);
+        } catch (e) {
+          console.warn("[engine] decal background keying failed", e);
+        }
+        let t: THREE.Texture;
+        if (keyed) {
+          const dt = new THREE.DataTexture(keyed.data, keyed.width, keyed.height, THREE.RGBAFormat);
+          dt.generateMipmaps = true;
+          dt.minFilter = THREE.LinearMipmapLinearFilter;
+          dt.magFilter = THREE.LinearFilter;
+          t = dt;
+        } else t = new THREE.Texture(im);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 8;
+        t.needsUpdate = true;
+        return t;
       });
       p.catch(() => textureCache.delete(url));
       textureCache.set(url, p);
@@ -782,7 +868,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
         if (disposed || decalViews.get(v.id) !== v || v.wantUrl !== url) return;
         const old = v.img;
         const mat = new THREE.MeshStandardMaterial({
-          map: tex, transparent: true, opacity: animate ? 0 : 1, roughness: 0.55, metalness: 0,
+          map: tex, transparent: true, alphaTest: 0.01, opacity: animate ? 0 : 1, roughness: 0.55, metalness: 0,
           emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.12,
           polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false,
         });
@@ -883,6 +969,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     );
     const root = new THREE.Group();
     root.name = "decal:" + d.id;
+    ph.name = "decal-ph"; // pointable while the image is still building
     ph.layers.set(FX_LAYER);
     root.add(ph);
     const v: DecalView = { id: d.id, key: d.id + "#" + ++serial, d: structuredClone(d), root, size: { w: d.width, h: d.height }, ph, phKey: "", failed: false, t0: performance.now() };
@@ -1049,6 +1136,127 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     return null;
   }
 
+  // ---------------- pointing: what is under the cursor (raycast only on demand / throttled hover)
+  const pointer = { ndc: new THREE.Vector2(), inside: false, moved: false };
+  let dragging = false;
+  let lastHoverAt = 0;
+  let hovered: HoverInfo | null = null;
+  const hoverListeners = new Set<(h: HoverInfo | null) => void>();
+  const raycaster = new THREE.Raycaster();
+  raycaster.layers.enable(FX_LAYER);
+  const hoverBox = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+    new THREE.LineBasicMaterial({ color: 0xcfeeff, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false }),
+  );
+  hoverBox.name = "hover";
+  hoverBox.layers.set(FX_LAYER); // invisible to the reflection capture
+  hoverBox.renderOrder = 4;
+  hoverBox.visible = false;
+  const onPointerMove = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    pointer.ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    pointer.inside = true;
+    pointer.moved = true;
+  };
+  const onPointerLeave = () => {
+    pointer.inside = false;
+    setHover(null);
+  };
+  canvas.addEventListener("pointermove", onPointerMove);
+  canvas.addEventListener("pointerleave", onPointerLeave);
+  controls.addEventListener("start", () => {
+    dragging = true;
+    setHover(null);
+  });
+  controls.addEventListener("end", () => {
+    dragging = false;
+    pointer.moved = true;
+  });
+
+  const visibleChain = (o: THREE.Object3D | null) => {
+    for (; o; o = o.parent) if (!o.visible) return false;
+    return true;
+  };
+
+  function pick(): { info: HoverInfo; point: THREE.Vector3 } | null {
+    if (!pointer.inside) return null;
+    camera.updateMatrixWorld();
+    raycaster.setFromCamera(pointer.ndc, camera);
+    const hits = raycaster.intersectObjects([roomGroup, objectsGroup, ...WALL_IDS.map((w) => wallFrames[w])], true);
+    for (const h of hits) {
+      const o = h.object as THREE.Mesh;
+      if (!o.isMesh) continue; // labels (sprites), outlines, scanner lines
+      if (o.layers.isEnabled(FX_LAYER) && o.name !== "decal-ph" && o.name !== "ghost-fill") continue;
+      if (!visibleChain(o)) continue;
+      for (let p: THREE.Object3D | null = o; p; p = p.parent) {
+        const nm = p.name;
+        if (nm.startsWith("obj:")) {
+          const ob = scene.objects.find((x) => x.id === nm.slice(4));
+          if (ob) return { info: { id: ob.id, name: ob.name, kind: "object" }, point: h.point };
+          break;
+        }
+        if (nm.startsWith("decal:")) {
+          const d = scene.decals.find((x) => x.id === nm.slice(6));
+          if (d) return { info: { id: d.id, name: d.name, kind: "decal" }, point: h.point };
+          break;
+        }
+        const sid = SURFACE_IDS.find((id) => surfMeshes[id] === p);
+        if (sid) return { info: { id: sid, name: SURFACE_NAMES[sid], kind: "surface" }, point: h.point };
+      }
+      // shell / baseboard boxes resolve to nothing: keep looking behind them
+    }
+    return null;
+  }
+
+  function placeHoverBox(h: HoverInfo | null) {
+    hoverBox.removeFromParent();
+    hoverBox.visible = false;
+    if (!h || h.kind === "surface") return; // surfaces: no outline (it would just frame the whole room)
+    if (h.kind === "object") {
+      const v = views.get(h.id);
+      if (!v) return;
+      const sz = v.obj.size;
+      hoverBox.position.set(0, sz.y / 2, 0);
+      hoverBox.scale.set(sz.x * 1.03 + 0.01, sz.y * 1.03 + 0.01, sz.z * 1.03 + 0.01);
+      v.root.add(hoverBox);
+    } else {
+      const v = decalViews.get(h.id);
+      if (!v) return;
+      hoverBox.position.set(0, 0, 0.002);
+      hoverBox.scale.set(v.size.w + 0.03, v.size.h + 0.03, 0.004);
+      v.root.add(hoverBox);
+    }
+    hoverBox.visible = true;
+  }
+
+  function setHover(h: HoverInfo | null) {
+    const same = (hovered?.id ?? null) === (h?.id ?? null);
+    hovered = h;
+    if (same) {
+      // same target: keep the outline glued to it (its view may have been rebuilt), no event
+      if (h && h.kind !== "surface" && (!hoverBox.visible || !hoverBox.parent?.parent)) placeHoverBox(h);
+      return;
+    }
+    placeHoverBox(h);
+    for (const fn of [...hoverListeners]) {
+      try {
+        fn(h ? { ...h } : null);
+      } catch (e) {
+        console.warn("[engine] hover listener threw", e);
+      }
+    }
+  }
+
+  function updateHover(now: number) {
+    if (!pointer.inside || dragging) return;
+    // pointer moved: up to 10/s; otherwise re-check slowly (things can move under a still cursor)
+    if (now - lastHoverAt < (pointer.moved ? 100 : 400)) return;
+    lastHoverAt = now;
+    pointer.moved = false;
+    setHover(pick()?.info ?? null);
+  }
+
   // ---------------- per-frame
   function updateVisibility() {
     const { width: W, depth: D, height: H } = scene.room;
@@ -1079,8 +1287,11 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     s3.background = CAPTURE_BG;
     s3.environment = envRT.texture;
     s3.environmentIntensity = BASE_ENV_INTENSITY;
+    boxEnv.uBoxOn.value = 0; // the generic studio env is not a capture of this room
     cubeCam.position.set(0, H * 0.45, D * 0.1);
     cubeCam.update(renderer, s3);
+    boxEnv.uBoxCap.value.copy(cubeCam.position);
+    boxEnv.uBoxOn.value = 1;
     s3.background = BG;
     if (surfMeshes.ceiling) surfMeshes.ceiling.visible = ceilVis;
     WALL_IDS.forEach((w, i) => (wallFrames[w].visible = frameVis[i]));
@@ -1099,6 +1310,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
         captureEnv();
       } catch (e) {
         console.warn("[engine] env capture failed", e);
+        boxEnv.uBoxOn.value = 0;
         s3.environment = envRT.texture;
         s3.environmentIntensity = BASE_ENV_INTENSITY;
       }
@@ -1113,6 +1325,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     controls.update();
     clampControls();
     updateVisibility();
+    updateHover(now);
     renderer.render(s3, camera);
   }
 
@@ -1146,6 +1359,22 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   renderer.setAnimationLoop(frame);
 
   // ---------------- public API
+  // staggered apply: one undo snapshot, ops land one by one
+  let stagger: { steps: Op[]; timer: number; resolve: () => void } | null = null;
+  function flushStagger() {
+    const st = stagger;
+    if (!st) return;
+    stagger = null;
+    clearTimeout(st.timer);
+    if (st.steps.length) {
+      scene = applyOpsToScene(scene, st.steps.splice(0));
+      normalizeStatuses(scene);
+      reconcile(true);
+      notify();
+    }
+    st.resolve();
+  }
+
   function commit(next: Scene) {
     normalizeStatuses(next);
     if (JSON.stringify(next) === JSON.stringify(scene)) return;
@@ -1156,6 +1385,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     notify();
   }
 
+  let shotCanvas: HTMLCanvasElement | null = null;
   const api: StudioEngine = {
     getScene() {
       return cloneScene(scene);
@@ -1163,6 +1393,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
 
     applyOps(ops) {
       if (disposed) return;
+      flushStagger();
       try {
         commit(applyOpsToScene(scene, ops));
       } catch (e) {
@@ -1172,6 +1403,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
 
     setScene(next) {
       if (disposed) return;
+      flushStagger();
       commit(normalizeScene(next));
     },
 
@@ -1244,8 +1476,65 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
       notify();
     },
 
+    applyOpsStaggered(ops, gapMs) {
+      if (disposed) return Promise.resolve();
+      flushStagger();
+      const list = Array.isArray(ops) ? ops.filter((o) => o && typeof o === "object") : [];
+      if (!list.length) return Promise.resolve();
+      undoStack.push(scene);
+      if (undoStack.length > 80) undoStack.shift();
+      return new Promise<void>((resolve) => {
+        const st = { steps: [...list], timer: 0, resolve };
+        stagger = st;
+        const tick = () => {
+          if (stagger !== st || disposed) return;
+          const op = st.steps.shift()!;
+          try {
+            scene = applyOpsToScene(scene, [op]);
+            normalizeStatuses(scene);
+            reconcile(true);
+            notify();
+          } catch (e) {
+            console.error("[engine] staggered op failed", op, e);
+          }
+          if (!st.steps.length) {
+            stagger = null;
+            resolve();
+          } else st.timer = window.setTimeout(tick, Math.max(0, gapMs));
+        };
+        tick();
+      });
+    },
+
+    getView() {
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      const v3 = (v: THREE.Vector3): Vec3 => ({ x: r2(v.x), y: r2(v.y), z: r2(v.z) });
+      const out: View = { position: v3(camera.position), target: v3(controls.target) };
+      if (disposed) return out;
+      const h = pick();
+      if (h) {
+        out.pointed = h.info.id;
+        out.pointedAt = v3(h.point);
+      }
+      return out;
+    },
+
+    onHover(fn) {
+      hoverListeners.add(fn);
+      return () => {
+        hoverListeners.delete(fn);
+      };
+    },
+
     undo() {
       if (disposed) return false;
+      if (stagger) {
+        // cancel the remaining steps; the snapshot pushed by applyOpsStaggered is popped below (one undo step)
+        const st = stagger;
+        stagger = null;
+        clearTimeout(st.timer);
+        st.resolve();
+      }
       const prev = undoStack.pop();
       if (!prev) return false;
       scene = prev;
@@ -1262,10 +1551,24 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
       };
     },
 
-    screenshot() {
+    screenshot(opts?: { maxSide?: number; quality?: number }) {
       if (disposed) return "";
+      const hv = hoverBox.visible;
+      hoverBox.visible = false; // keep the hover outline out of pictures sent to models
       renderer.render(s3, camera); // render + read in the same task: no preserveDrawingBuffer needed
-      return canvas.toDataURL("image/jpeg", 0.88);
+      hoverBox.visible = hv;
+      const maxSide = opts?.maxSide;
+      if (!maxSide || maxSide <= 0) return canvas.toDataURL("image/jpeg", opts?.quality ?? 0.88);
+      const k = Math.min(1, maxSide / Math.max(canvas.width, canvas.height));
+      const w = Math.max(1, Math.round(canvas.width * k)), h = Math.max(1, Math.round(canvas.height * k));
+      shotCanvas ??= document.createElement("canvas");
+      if (shotCanvas.width !== w) shotCanvas.width = w;
+      if (shotCanvas.height !== h) shotCanvas.height = h;
+      const g = shotCanvas.getContext("2d");
+      if (!g) return canvas.toDataURL("image/jpeg", opts?.quality ?? 0.7);
+      g.imageSmoothingQuality = "high";
+      g.drawImage(canvas, 0, 0, w, h);
+      return shotCanvas.toDataURL("image/jpeg", opts?.quality ?? 0.7);
     },
 
     focus(id) {
@@ -1287,7 +1590,18 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     dispose() {
       if (disposed) return;
       disposed = true;
+      if (stagger) {
+        clearTimeout(stagger.timer);
+        stagger.resolve();
+        stagger = null;
+      }
       renderer.setAnimationLoop(null);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
+      hoverListeners.clear();
+      hoverBox.removeFromParent();
+      hoverBox.geometry.dispose();
+      hoverBox.material.dispose();
       ro.disconnect();
       controls.dispose();
       tweens.clear();

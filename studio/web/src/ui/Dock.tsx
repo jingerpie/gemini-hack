@@ -55,17 +55,20 @@ export function Dock({ chip, listening, levelRef, onToggle, onSend }: Props) {
       </button>
 
       <div className="legend">
-        <span>
-          <i className="dot dot-patch" /> orchestrator · gemini-4-hydrogen
+        <span title="orchestrator · gemini-4-hydrogen">
+          <i className="dot dot-patch" /> orchestrator · hydrogen
         </span>
-        <span>
-          <i className="dot dot-asset" /> managed agent · antigravity
+        <span title="designer · gemini-4-argon (whole-room requests)">
+          <i className="dot dot-designer" /> designer · argon
         </span>
-        <span>
+        <span title="3D models · managed agent (antigravity)">
+          <i className="dot dot-asset" /> 3D agent
+        </span>
+        <span title="images and photoreal renders · nano-banana">
           <i className="dot dot-decal" /> image · nano-banana
         </span>
-        <span>
-          <i className="dot dot-source" /> sourcing agent · antigravity + google search
+        <span title="sourcing agent · antigravity + Google Search">
+          <i className="dot dot-source" /> shopping agent
         </span>
       </div>
     </div>

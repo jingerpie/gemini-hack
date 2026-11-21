@@ -2,14 +2,17 @@
 // it drops at dispatch, grows right while running (→), and turns back up (↑) when it returns.
 // Rendered on a canvas from requestAnimationFrame, reading the task manager's live task list directly.
 import { useEffect, useRef, useState } from "react";
-import type { Task, TaskManager } from "../lib/taskManager";
+import { DESIGNER_HINT_MS, type Task, type TaskManager } from "../lib/taskManager";
 
 export const HUES = {
   patch: "#6f90bd",
   asset: "#8270c0",
   decal: "#4fa39a",
   source: "#c9934a",
+  render: "#4fa39a", // the image model's colour
 } as const;
+export const DESIGNER_HUE = "#c77fb4";
+const MAX_LANES = 4; // lanes 0..3 are drawn; anything deeper is summarized as "+N more"
 
 const PX_PER_S = 21;
 const PX_PER_MS = PX_PER_S / 1000;
@@ -112,10 +115,17 @@ export function Timeline({ manager }: { manager: TaskManager }) {
       ctx.setLineDash([]);
 
       // lanes: compress spacing if many concurrent tasks
-      const tasks = manager.liveTasks();
+      const tasks = manager.liveTasks().filter((k) => k.status !== "queued");
       let maxLane = 0;
-      for (const k of tasks) if (k.lane > maxLane) maxLane = k.lane;
-      const gap = Math.min(LANE_GAP, (h - BASE_Y - FIRST_LANE - 8) / Math.max(1, maxLane));
+      for (const k of tasks) if (k.lane > maxLane && k.lane < MAX_LANES) maxLane = k.lane;
+      let overflow = 0;
+      let queued = 0;
+      for (const k of manager.liveTasks()) {
+        if (k.status === "queued") queued++;
+        else if (k.endAt == null && k.lane >= MAX_LANES) overflow++;
+      }
+      const extraRow = overflow + queued > 0 ? 1 : 0;
+      const gap = Math.min(LANE_GAP, (h - BASE_Y - FIRST_LANE - 8) / Math.max(1, maxLane + extraRow));
       const laneY = (lane: number) => BASE_Y + FIRST_LANE + lane * gap;
 
       // A patch stays on the strip while any job it handed off is still visible, so the hand-off keeps reading.
@@ -132,6 +142,7 @@ export function Timeline({ manager }: { manager: TaskManager }) {
       // draw children after parents so the hand-off reads left-to-right; draw running on top
       const order = tasks
         .filter((k) => {
+          if (k.lane >= MAX_LANES) return false;
           if (k.endAt == null) return true;
           return t - fadeAt(k) < HOLD_MS + FADE_MS;
         })
@@ -149,12 +160,14 @@ export function Timeline({ manager }: { manager: TaskManager }) {
         const stopped = k.status === "cancelled" || k.status === "superseded";
         const nochange = k.status === "nochange";
         const hovered = hoverId === k.id;
-        let color: string = HUES[k.kind];
+        const planning = k.kind === "patch" && !ended && t - k.startAt > DESIGNER_HINT_MS;
+        const designer = k.kind === "patch" && (k.designer || planning);
+        let color: string = designer ? DESIGNER_HUE : HUES[k.kind];
         if (nochange) color = NOCHANGE;
         ctx.globalAlpha = alpha * (nochange ? 0.75 : stopped ? 0.6 : 1);
         ctx.strokeStyle = color;
         ctx.fillStyle = color;
-        ctx.lineWidth = (nochange ? 1 : 1.6) + (hovered ? 1 : 0);
+        ctx.lineWidth = (nochange ? 1 : designer ? 2.4 : 1.6) + (hovered ? 1 : 0);
         ctx.lineJoin = "round";
         ctx.lineCap = "round";
         const len = x1 - x0;
@@ -170,6 +183,17 @@ export function Timeline({ manager }: { manager: TaskManager }) {
           ctx.lineTo(Math.max(x0 + r, x1 - 1), y);
           ctx.stroke();
           arrowRight(ctx, x1 + 2, y, hovered ? 5 : 4.2);
+          if (planning) {
+            ctx.font = "500 10px Inter, system-ui, sans-serif";
+            ctx.textBaseline = "middle";
+            const label = "designer is planning the room…";
+            const tw = ctx.measureText(label).width;
+            const lx = x1 - tw - 14 > x0 + 8 ? x1 - tw - 14 : x1 + 12;
+            ctx.globalAlpha = alpha * 0.95;
+            ctx.fillText(label, lx, y - 6);
+            ctx.textBaseline = "alphabetic";
+            ctx.fillStyle = color;
+          }
           // soft pulse at the head
           const p = (Math.sin(t / 220) + 1) / 2;
           ctx.globalAlpha = alpha * (0.12 + 0.18 * p);
@@ -189,6 +213,21 @@ export function Timeline({ manager }: { manager: TaskManager }) {
         }
         ctx.globalAlpha = 1;
         hits.push({ id: k.id, x0, x1: x1 + 6, y });
+      }
+
+      if (overflow + queued > 0) {
+        const parts: string[] = [];
+        if (overflow) parts.push(`+${overflow} more running`);
+        if (queued) parts.push(`${queued} queued`);
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = "rgba(225,230,240,0.6)";
+        ctx.font = "500 10px Inter, system-ui, sans-serif";
+        ctx.textBaseline = "middle";
+        const txt = parts.join(" · ");
+        const tw = ctx.measureText(txt).width;
+        ctx.fillText(txt, Math.max(LEFT_PAD, Math.min(nowX - tw - 10, w - tw - 8)), Math.min(h - 7, laneY(maxLane + 1)));
+        ctx.textBaseline = "alphabetic";
+        ctx.globalAlpha = 1;
       }
 
       // now marker
@@ -280,13 +319,13 @@ function TimelineTip({ tip, manager }: { tip: { x: number; y: number; w: number;
   const pos = flip ? { right: Math.max(8, tip.w - tip.x - 10) } : { left: Math.max(8, tip.x - 10) };
   return (
     <div className="timeline-tip" style={{ ...pos, top: Math.max(4, tip.y - 44) }}>
-      <span className={`dot dot-${live.kind}`} />
+      <span className={`dot dot-${live.kind === "patch" && live.designer ? "designer" : live.kind}`} />
       <span className="tip-label">{label}</span>
       <span className="tip-ms">
         {fmtMs(ms)}
         {live.endAt == null ? "…" : ""}
         {live.status !== "running" && live.status !== "done" ? ` · ${live.status}` : ""}
-        {live.kind === "patch" && live.model ? ` · ${live.model}` : ""}
+        {(live.kind === "patch" || live.kind === "render") && live.model ? ` · ${live.model}` : ""}
       </span>
     </div>
   );
