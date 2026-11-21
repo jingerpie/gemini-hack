@@ -4,5 +4,13 @@ import { createEngine } from "./engine";
 
 const engine = createEngine(document.getElementById("stage")!);
 (window as unknown as Record<string, unknown>).engine = engine;
-engine.subscribe((s) => console.debug("[dev] scene changed", s.objects.length, "objects", s.decals.length, "decals"));
+engine.subscribe((s) =>
+	console.debug(
+		"[dev] scene changed",
+		s.objects.length,
+		"objects",
+		s.decals.length,
+		"decals",
+	),
+);
 (window as unknown as Record<string, unknown>).__engineReady = true;
