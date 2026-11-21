@@ -25,6 +25,7 @@ const NOISE = +opt("noise", 0);
 const DROP_AT = +opt("drop-at", 0);
 const LEAD = +opt("lead", 1000);
 const QUIET = args.includes("--quiet");
+const RAW = args.includes("--raw");
 if (opt("gate", "") !== "") TUNING.GATE_AFTER_END = opt("gate", "") === "1";
 
 const TEXT = {
@@ -130,7 +131,7 @@ const stt = new GeminiStt({
   onStatus: (s, d) => console.log(`[${String(T()).padStart(6)}] status ${s} ${d ?? ""}`),
   onFatal: (e) => console.log(`[${String(T()).padStart(6)}] FATAL ${e.message}`),
   log: (m) => {
-    if (!QUIET || /final|down|rotat|reconnect|dropped/.test(m)) console.log(`[${String(T()).padStart(6)} ${where(T()).padEnd(9)}] .. ${m}`);
+    if (QUIET ? /final|down|rotat|reconnect|dropped|recovered/.test(m) : !/^raw interim/.test(m) || RAW) console.log(`[${String(T()).padStart(6)} ${where(T()).padEnd(9)}] .. ${m}`);
   },
 });
 

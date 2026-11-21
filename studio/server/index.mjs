@@ -4,6 +4,7 @@ import { scrub } from './lib.mjs';
 import { patch, PATCH_MODEL } from './patch.mjs';
 import { buildAsset, assetConfig } from './asset.mjs';
 import { decal, token, verify, IMAGE_MODEL, LIVE_MODEL, DECISION_MODEL } from './media.mjs';
+import { sourceProducts, proxyImage, SOURCE_AGENT, SOURCE_DIRECT_MODEL } from './source.mjs';
 
 const PORT = +(process.env.PORT || 8787);
 const CORS = {
@@ -28,7 +29,7 @@ function json(res, status, obj) {
 async function handle(req, res, url, note) {
   const route = `${req.method} ${url.pathname}`;
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
-  if (route === 'GET /api/health') return json(res, 200, { ok: true, models: { patch: PATCH_MODEL, asset: assetConfig, image: IMAGE_MODEL, live: LIVE_MODEL, decision: DECISION_MODEL } });
+  if (route === 'GET /api/health') return json(res, 200, { ok: true, models: { patch: PATCH_MODEL, asset: assetConfig, image: IMAGE_MODEL, live: LIVE_MODEL, decision: DECISION_MODEL, source: { agent: SOURCE_AGENT, direct: SOURCE_DIRECT_MODEL } } });
 
   if (route === 'POST /api/patch') {
     const body = await readJson(req);
@@ -55,6 +56,32 @@ async function handle(req, res, url, note) {
     catch (e) { send({ type: 'error', message: scrub(e.message || e) }); last = { type: 'error' }; }
     finally { clearInterval(ping); res.end(); }
     note(`${body.objectId || ''} "${String(body.name || '').slice(0, 40)}" mode=${mode} -> ${last ? (last.type === 'done' ? `done via ${last.via} (${last.ms}ms, ${last.code.length} chars)` : `${last.type}${last.message ? ': ' + last.message.slice(0, 200) : ''}`) : 'aborted by client'}`);
+    return;
+  }
+
+  if (route === 'POST /api/source') {
+    const body = await readJson(req);
+    if (!body.description && !body.name) return json(res, 400, { error: 'description required' });
+    const mode = ['direct', 'agent', 'race'].includes(url.searchParams.get('via')) ? url.searchParams.get('via') : 'race';
+    res.writeHead(200, { ...CORS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+    res.flushHeaders?.();
+    const ctl = new AbortController();
+    res.on('close', () => { if (!res.writableFinished) ctl.abort(new Error('client disconnected')); });
+    const ping = setInterval(() => res.write(': ping\n\n'), 10000);
+    const send = ev => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(ev)}\n\n`); };
+    let last = null;
+    try { last = await sourceProducts(body, { send, mode, signal: ctl.signal }); }
+    catch (e) { send({ type: 'error', message: scrub(e.message || e) }); last = { type: 'error', message: String(e.message) }; }
+    finally { clearInterval(ping); res.end(); }
+    note(`${body.objectId || ''} "${String(body.name || '').slice(0, 40)}" mode=${mode} -> ${last ? (last.type === 'done' ? `done via ${last.model} (${last.ms}ms, ${last.products.length} products)` : `${last.type}: ${String(last.message).slice(0, 200)}`) : 'aborted by client'}`);
+    return;
+  }
+
+  if (route === 'GET /api/img') {
+    const { type, body } = await proxyImage(url.searchParams.get('u'));
+    res.writeHead(200, { ...CORS, 'Content-Type': type, 'Content-Length': body.length, 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+    res.end(body);
+    note(`${type} ${Math.round(body.length / 1024)}KB`);
     return;
   }
 
