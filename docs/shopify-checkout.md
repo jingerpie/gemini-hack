@@ -45,7 +45,9 @@ room object ──► POST /api/shop/match ──► one Product (variant_id + s
 ### Front end (`apps/web`)
 
 - `src/lib/cart.ts`: `useCart(manager)`. Reads the objects in the live scene, runs one TanStack Query per object against `/api/shop/match`, and holds the checkout state. A created checkout is dropped when the set of products changes, so a stale link is never shown.
-- `src/ui/CartPanel.tsx`: the "In this room" card in the sidebar. It replaces the old "Shop the look" card (three web-search options per object, most of them not buyable through Shop).
+- `src/ui/CartPanel.tsx`: the "In this room" card in the sidebar, with one Checkout button for the whole room.
+- `src/ui/CartPage.tsx`: the cart page that Checkout opens (a full-screen dialog, so the room stays loaded). Listings grouped by store, each store with its totals, policy links and its own Pay link.
+- About the card: It replaces the old "Shop the look" card (three web-search options per object, most of them not buyable through Shop).
 - Product images load straight from the merchant. Product links and pay links are used exactly as returned.
 - The old "shop the look" web search (Managed Agent) no longer starts by default. `?source=1` turns it back on.
 
@@ -73,5 +75,6 @@ Create a checkout, open the pay link, see the merchant page with the item and to
 
 - Contract: done.
 - Server match route and checkout totals: done, run against live Shop (5 objects matched in 0.6 s; a two-merchant checkout in 1.0 s returned store names, totals and legal links).
-- Cart hook and panel: in progress.
+- Cart hook and panel: written, type-check and Biome pass, dev server compiles them. Not yet seen in a browser.
+- Known limits: catalog objects match loosely (nearest real sofa, not the same design); a generated object whose name finds nothing shows "no listing found".
 - Tested in the browser by a person: not yet.
