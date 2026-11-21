@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import path from "node:path";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
@@ -13,7 +14,13 @@ const catalogDir = path.join(
 
 export default defineConfig({
 	root: __dirname,
-	plugins: [react()],
+	plugins: [
+		tanstackRouter({ target: "react", autoCodeSplitting: true }),
+		react(),
+	],
 	resolve: { alias: { "@catalog": catalogDir } },
-	server: { port: 5273, proxy: { "/api": "http://localhost:8787" } },
+	server: {
+		port: 5273,
+		proxy: { "/api": process.env.API_URL ?? "http://localhost:8787" },
+	},
 });

@@ -12,11 +12,13 @@
 	"dependencies": {
 		"@gemini-hack/catalog": "workspace:*",
 		"@google/genai": "^3.6.1",
+		"@tanstack/react-router": "^1.170.46",
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"three": "^0.170.0"
 	},
 	"devDependencies": {
+		"@tanstack/router-plugin": "^1.169.0",
 		"@types/node": "catalog:",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",

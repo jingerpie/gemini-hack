@@ -13,6 +13,7 @@ import { Hud } from "./ui/Hud";
 import { RenderOverlay } from "./ui/RenderOverlay";
 import { Sidebar } from "./ui/Sidebar";
 import { Timeline } from "./ui/Timeline";
+import "./styles.css";
 
 // ?mock=1 → mock engine + api + voice.  ?mock=api → real 3D engine, mock api + voice.  (none) → all real.
 const MOCK_MODE = new URLSearchParams(location.search).get("mock");
