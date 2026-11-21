@@ -9,6 +9,8 @@
 // Decal x convention: x is measured along the wall from its center, + = to the RIGHT of a viewer standing in the room
 // facing that wall. Back wall: +x = world +X. Left wall (x = -W/2): +x = world -Z (toward the back wall).
 // Right wall (x = +W/2): +x = world +Z (toward the open front).
+
+import { followParents, resolveMount } from "@gemini-hack/placement";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -37,6 +39,7 @@ import {
 import {
 	computeFit,
 	disposeObject,
+	type EmitterRole,
 	evaluateModelCode,
 	type MatState,
 	modelTargets,
@@ -47,6 +50,8 @@ import {
 	applyOpsToScene,
 	clamp,
 	cloneScene,
+	type Explicit,
+	explicitPlacements,
 	normalizeScene,
 	SURFACE_IDS,
 	WALL_IDS,
@@ -384,6 +389,13 @@ type ModelView = {
 	baseColor: string | null;
 	glbUrl?: string;
 };
+/** Where a lamp's real light sits: an empty marker inside the model (raw coords), so fit, pose and tweens carry it. */
+type LampView = {
+	anchor: THREE.Object3D;
+	role: EmitterRole;
+	color: THREE.Color;
+	kind: string;
+};
 type Mode = "prim" | "solid" | "ghost" | "model";
 type ObjView = {
 	id: string;
@@ -394,6 +406,7 @@ type ObjView = {
 	mode: Mode;
 	prim?: { mesh: THREE.Mesh<THREE.BufferGeometry, StdMat>; shape: Shape };
 	model?: ModelView;
+	lamp?: LampView;
 	fx?: Fx;
 };
 type Want =
@@ -535,6 +548,18 @@ export function createEngine(
 	s3.add(fill, fill.target);
 	const practical = new THREE.PointLight(0xffd29a, 2.2, 0, 2);
 	s3.add(practical);
+	const PRACTICAL_BASE = 2.2;
+
+	// ---------------- lamp lights: a fixed pool, so lamps switching on/off never change the shader's light count
+	const LAMP_SLOTS = 8;
+	const lampPool = Array.from({ length: LAMP_SLOTS }, () => {
+		const l = new THREE.PointLight(0xffd9a0, 0, 4, 2);
+		l.castShadow = false;
+		s3.add(l);
+		return l;
+	});
+	const slotOf = new Map<string, number>(); // object id -> pool slot (kept while the lamp stays lit: no popping)
+	let lampSig = "";
 
 	// ---------------- room
 	const floorTex = makeFloorTexture();
@@ -743,6 +768,7 @@ export function createEngine(
 			disposeObject(v.prim.mesh);
 			v.prim = undefined;
 		}
+		v.lamp = undefined;
 		if (v.model) {
 			v.body.remove(v.model.wrap);
 			if (v.model.glbUrl)
@@ -787,6 +813,8 @@ export function createEngine(
 				prepared.records.forEach((r, i) =>
 					writeMat(r.mat, targets[i], r.transparent),
 				);
+				v.lamp = lampFor(o, prepared);
+				if (v.lamp) prepared.group.add(v.lamp.anchor);
 			} else mode = "solid";
 		}
 		if (mode === "prim" || mode === "solid") {
@@ -940,6 +968,93 @@ export function createEngine(
 		(fx.label.material as THREE.SpriteMaterial).opacity = 0.7 + 0.3 * pulse;
 	}
 
+	// Kinds whose glowing parts are real light sources even when the model predates the emit_* naming rule.
+	const LAMP_KINDS = new Set([
+		"floor-lamp",
+		"table-lamp",
+		"pendant-light",
+		"string-lights",
+		"candle",
+	]);
+	const LAMP_WORDS =
+		/\b(lamp|light|lights|chandelier|sconce|lantern|pendant|candle|candles|torch)\b/i;
+	const ROLE_RANK: Record<EmitterRole, number> = {
+		bulb: 3,
+		flame: 2,
+		glow: 1,
+		screen: 0,
+	};
+	/** Picks one representative light per object (the strongest role present, at the centroid of its parts). */
+	function lampFor(
+		o: SceneObject,
+		prepared: PreparedModel,
+	): LampView | undefined {
+		const kind = o.product?.catalogId?.split("/")[0] ?? "";
+		const lampish = LAMP_KINDS.has(kind) || LAMP_WORDS.test(o.name);
+		const ems = prepared.emitters.filter((e) => e.named || lampish);
+		if (!ems.length) return undefined;
+		const best = ems.reduce((a, e) =>
+			ROLE_RANK[e.role] > ROLE_RANK[a.role] ? e : a,
+		).role;
+		const group = ems.filter((e) => e.role === best);
+		const anchor = new THREE.Object3D();
+		anchor.name = "lamp-anchor";
+		for (const e of group) anchor.position.add(e.pos);
+		anchor.position.divideScalar(group.length);
+		return {
+			anchor,
+			role: best === "glow" ? (lampish ? "bulb" : "glow") : best,
+			color: group[0].color.clone(),
+			kind,
+		};
+	}
+	// Practical brightness per role (candela, decay 2) and reach (m). Not taken from the model's emissiveIntensity.
+	const LAMP_POWER: Record<EmitterRole, { i: number; d: number }> = {
+		bulb: { i: 3.2, d: 5 },
+		flame: { i: 0.45, d: 1.6 },
+		glow: { i: 0.6, d: 2 },
+		screen: { i: 0.3, d: 1.6 },
+	};
+	const _lp = new THREE.Vector3();
+	function updateLampLights() {
+		const lit: { id: string; v: ObjView; p: { i: number; d: number } }[] = [];
+		for (const v of views.values()) {
+			if (!v.lamp || v.mode !== "model" || v.obj.light_on === false) continue;
+			const base = LAMP_POWER[v.lamp.role];
+			const p = v.lamp.kind === "string-lights" ? { i: 1.4, d: 2.5 } : base;
+			lit.push({ id: v.id, v, p });
+		}
+		lit.sort((a, b) => b.p.i - a.p.i || (a.id < b.id ? -1 : 1));
+		const chosen = lit.slice(0, LAMP_SLOTS);
+		const keep = new Set(chosen.map((c) => c.id));
+		for (const id of [...slotOf.keys()]) if (!keep.has(id)) slotOf.delete(id);
+		const used = new Set(slotOf.values());
+		for (const c of chosen)
+			if (!slotOf.has(c.id)) {
+				let k = 0;
+				while (used.has(k)) k++;
+				slotOf.set(c.id, k);
+				used.add(k);
+			}
+		lampPool.forEach((l) => (l.intensity = 0));
+		for (const c of chosen) {
+			const l = lampPool[slotOf.get(c.id)!];
+			c.v.lamp!.anchor.getWorldPosition(_lp);
+			l.position.copy(_lp);
+			l.color.copy(c.v.lamp!.color);
+			l.intensity = c.p.i * Math.min(1, c.v.body.scale.x); // follows the pop-in / remove animation
+			l.distance = c.p.d;
+		}
+		practical.intensity = chosen.some((c) => c.p.i >= 1)
+			? PRACTICAL_BASE * 0.55
+			: PRACTICAL_BASE;
+		const sig = chosen.map((c) => c.id).join(",");
+		if (sig !== lampSig) {
+			lampSig = sig;
+			markEnvDirty();
+		}
+	}
+
 	function createObjView(o: SceneObject, animate: boolean) {
 		const root = new THREE.Group();
 		root.name = "obj:" + o.id;
@@ -1029,7 +1144,8 @@ export function createEngine(
 			const matChanged =
 				prev.color !== o.color ||
 				JSON.stringify(prev.material ?? {}) !==
-					JSON.stringify(o.material ?? {});
+					JSON.stringify(o.material ?? {}) ||
+				(prev.light_on === false) !== (o.light_on === false);
 			if (matChanged) {
 				const pairs: {
 					mat: StdMat;
@@ -1463,6 +1579,13 @@ export function createEngine(
 		const atBack = o.position.z - e0.ez <= -D / 2 + NEAR;
 		const atLeft = o.position.x - e0.ex <= -W / 2 + NEAR;
 		const atRight = o.position.x + e0.ex >= W / 2 - NEAR;
+		const before = {
+			objects: s.objects.map((x) => ({
+				...x,
+				position: { ...x.position },
+				size: { ...x.size },
+			})),
+		} as Scene;
 		o.size = ns;
 		if (atBack) o.position.z = -D / 2 + e1.ez + 0.004;
 		if (atLeft) o.position.x = -W / 2 + e1.ex + 0.004;
@@ -1470,29 +1593,9 @@ export function createEngine(
 		if (W > 2 * e1.ex)
 			o.position.x = clamp(o.position.x, -W / 2 + e1.ex, W / 2 - e1.ex);
 		o.position.z = Math.max(o.position.z, -D / 2 + e1.ez);
-		const par = o.parent
-			? s.objects.find((p) => p.id === o.parent && p.id !== o.id)
-			: undefined;
-		if (par) o.position.y = par.position.y + par.size.y;
-		// whatever rests on it follows its new top
-		const seen = new Set<string>([o.id]);
-		const shift = (id: string, dy: number) => {
-			for (const ch of s.objects) {
-				if (ch.parent !== id || seen.has(ch.id)) continue;
-				seen.add(ch.id);
-				ch.position.y += dy;
-				shift(ch.id, dy);
-			}
-		};
-		for (const ch of s.objects) {
-			if (ch.parent !== o.id || seen.has(ch.id)) continue;
-			const dy = o.position.y + o.size.y - ch.position.y;
-			seen.add(ch.id);
-			if (Math.abs(dy) > 1e-4) {
-				ch.position.y += dy;
-				shift(ch.id, dy);
-			}
-		}
+		if (o.mount) resolveMount(o, s.room);
+		// Things resting on it keep their place on it (shared rule: only what sat on its top follows a height change).
+		followParents(before, s);
 	}
 
 	function emitProgress(url: string, loaded: number, total: number) {
@@ -1996,6 +2099,7 @@ export function createEngine(
 			}
 		}
 		for (const v of views.values()) if (v.fx) animateFx(v.fx, now);
+		updateLampLights();
 		for (const v of decalViews.values()) {
 			if (v.ph.visible && !v.img && !v.failed) {
 				const p = (now - v.t0) / 1000;
@@ -2041,15 +2145,19 @@ export function createEngine(
 
 	// ---------------- public API
 	// staggered apply: one undo snapshot, ops land one by one
-	let stagger: { steps: Op[]; timer: number; resolve: () => void } | null =
-		null;
+	let stagger: {
+		steps: Op[];
+		timer: number;
+		resolve: () => void;
+		explicit: Explicit;
+	} | null = null;
 	function flushStagger() {
 		const st = stagger;
 		if (!st) return;
 		stagger = null;
 		clearTimeout(st.timer);
 		if (st.steps.length) {
-			scene = applyOpsToScene(scene, st.steps.splice(0));
+			scene = applyOpsToScene(scene, st.steps.splice(0), st.explicit);
 			normalizeStatuses(scene);
 			reconcile(true);
 			notify();
@@ -2174,13 +2282,18 @@ export function createEngine(
 			undoStack.push(scene);
 			if (undoStack.length > 80) undoStack.shift();
 			return new Promise<void>((resolve) => {
-				const st = { steps: [...list], timer: 0, resolve };
+				const st = {
+					steps: [...list],
+					timer: 0,
+					resolve,
+					explicit: explicitPlacements(list),
+				};
 				stagger = st;
 				const tick = () => {
 					if (stagger !== st || disposed) return;
 					const op = st.steps.shift()!;
 					try {
-						scene = applyOpsToScene(scene, [op]);
+						scene = applyOpsToScene(scene, [op], st.explicit);
 						normalizeStatuses(scene);
 						reconcile(true);
 						notify();

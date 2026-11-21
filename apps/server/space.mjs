@@ -211,6 +211,29 @@ function viewLines(view, scene, room, objs) {
 	return L;
 }
 
+// Surfaces of catalog products (seat, shelves, top), injected by patch.mjs so this module stays free of catalog imports.
+let supportsOf = () => [];
+export function setSupportLookup(fn) {
+	if (typeof fn === "function") supportsOf = fn;
+}
+function surfacesText(o) {
+	const list = o.product?.catalogId
+		? supportsOf(o.product.catalogId, o.size)
+		: [];
+	if (!list.length) return "";
+	const seen = new Set();
+	const parts = [];
+	for (const p of list) {
+		const k = p.name + "@" + p.y.toFixed(2);
+		if (seen.has(k)) continue;
+		seen.add(k);
+		parts.push(
+			`${p.name} y ${r1(num(o.position?.y) + p.y)} (${r1(p.x1 - p.x0)} x ${r1(p.z1 - p.z0)} m${p.clear != null ? `, ${r1(p.clear)} m clear above` : ""})`,
+		);
+	}
+	return `; surfaces: ${parts.slice(0, 8).join(", ")}`;
+}
+
 export function spaceBlock(scene, history = [], view) {
 	const room = roomOf(scene);
 	const hx = room.width / 2;
@@ -218,7 +241,7 @@ export function spaceBlock(scene, history = [], view) {
 	const objs = (scene?.objects || []).filter((o) => o && o.id);
 	const decals = (scene?.decals || []).filter((d) => d && d.id);
 	const F = new Map(objs.map((o) => [o.id, footprint(o)]));
-	const floorObjs = objs.filter((o) => !o.parent);
+	const floorObjs = objs.filter((o) => !o.parent && !o.mount); // wall/ceiling-mounted things are not floor obstacles
 	const L = [];
 	L.push(
 		"SPACE (computed by the server from the scene; use these numbers instead of re-deriving them)",
@@ -265,10 +288,15 @@ export function spaceBlock(scene, history = [], view) {
 	for (const o of objs) {
 		const f = F.get(o.id);
 		const holds = objs.filter((c) => c.parent === o.id).map((c) => c.id);
-		const sameSupport = objs.filter(
-			(b) =>
-				b.id !== o.id && (b.parent || "") === (o.parent || "") && !isFlat(b),
-		);
+		const sameSupport = o.mount
+			? []
+			: objs.filter(
+					(b) =>
+						b.id !== o.id &&
+						!b.mount &&
+						(b.parent || "") === (o.parent || "") &&
+						!isFlat(b),
+				);
 		const nb = sameSupport
 			.map((b) => {
 				const g = F.get(b.id);
@@ -297,8 +325,8 @@ export function spaceBlock(scene, history = [], view) {
 						.map((b) => b.id)
 				: [];
 		L.push(
-			`- ${o.id} "${String(o.name || "").slice(0, 30)}": ${o.parent ? `on top of ${o.parent}` : whereWords(f, room)}. x ${r1(f.x0)}..${r1(f.x1)}, z ${r1(f.z0)}..${r1(f.z1)}, top ${r1(f.y1)}${o.parent ? "" : ""}; faces ${facing(o.rotation_y_deg)}` +
-				`${holds.length ? `; holds ${holds.join(",")}` : ""}${under.length ? `; stands on rug ${under.join(",")}` : ""}${nb.length ? `; ${nb.map((n) => `${n.b.id} is ${r1(n.gap)} m ${dirWord(n.dx, n.dz).replace(" of", "")}`).join(", ")}` : ""}`,
+			`- ${o.id} "${String(o.name || "").slice(0, 30)}": ${o.mount ? (o.mount === "ceiling" ? "hangs from the ceiling" : `hangs on ${o.mount}, y ${r1(num(o.position?.y))}..${r1(num(o.position?.y) + num(o.size?.y))}`) + (o.parent ? "" : "") + " " + whereWords(f, room) : o.parent ? `on top of ${o.parent}` : whereWords(f, room)}. x ${r1(f.x0)}..${r1(f.x1)}, z ${r1(f.z0)}..${r1(f.z1)}, top ${r1(f.y1)}${o.parent ? "" : ""}; faces ${facing(o.rotation_y_deg)}` +
+				`${surfacesText(o)}${holds.length ? `; holds ${holds.join(",")}` : ""}${under.length ? `; stands on rug ${under.join(",")}` : ""}${nb.length ? `; ${nb.map((n) => `${n.b.id} is ${r1(n.gap)} m ${dirWord(n.dx, n.dz).replace(" of", "")}`).join(", ")}` : ""}`,
 		);
 	}
 	// decals

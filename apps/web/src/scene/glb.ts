@@ -272,12 +272,14 @@ export function instantiateGlb(t: GlbTemplate): PreparedModel {
 		});
 	}
 	group.updateMatrixWorld(true);
+	// Merchant GLBs carry no emit_* convention; lamps from GLBs get no practical light (emitters empty).
 	return {
 		group,
 		rawBox: t.rawBox.clone(),
 		records,
 		meshCount: t.meshCount,
 		drawCount: t.meshCount,
+		emitters: [],
 	};
 }
 

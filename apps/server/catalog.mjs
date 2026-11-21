@@ -17,6 +17,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import { fitScale } from "@gemini-hack/placement";
+import { findSupports } from "@gemini-hack/placement/supports";
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,7 +27,7 @@ import { CATALOG_DIR, CATALOG_JSON } from "@gemini-hack/catalog";
 export { CATALOG_DIR };
 
 const SIZES_JSON = path.join(SERVER_DIR, "catalog-sizes.json");
-const MEASURE_VERSION = "m3:"; // bump when measure() output changes, so catalog-sizes.json is rebuilt
+const MEASURE_VERSION = "m7:"; // bump when measure() output changes, so catalog-sizes.json is rebuilt
 
 let THREE = null;
 try {
@@ -44,23 +46,67 @@ const KIND_RANGE = {
 	"dining-chair": { x: [0.35, 0.75], y: [0.7, 1.15], z: [0.38, 0.75] },
 	"office-chair": { x: [0.45, 0.85], y: [0.75, 1.45], z: [0.45, 0.85] },
 	stool: { x: [0.25, 0.75], y: [0.3, 1.05], z: [0.25, 0.75] },
-	bench: { x: [0.6, 2.4], y: [0.35, 1.0], z: [0.25, 0.75] },
+	bench: { x: [0.4, 2.4], y: [0.14, 1.0], z: [0.2, 0.75] }, // incl. low meditation / folding benches
 	ottoman: { x: [0.3, 1.4], y: [0.25, 0.6], z: [0.3, 1.4] },
 	"dining-table": { x: [0.7, 3.2], y: [0.65, 0.82], z: [0.6, 1.3] },
 	"coffee-table": { x: [0.4, 1.8], y: [0.2, 0.6], z: [0.35, 1.2] },
-	"side-table": { x: [0.25, 0.8], y: [0.35, 0.8], z: [0.25, 0.8] },
+	"side-table": { x: [0.25, 1.1], y: [0.35, 0.8], z: [0.25, 0.8] }, // nesting sets stand side by side
 	"console-table": { x: [0.6, 2.4], y: [0.65, 1.0], z: [0.22, 0.6] },
-	desk: { x: [0.7, 2.2], y: [0.65, 1.9], z: [0.4, 0.95] },
+	desk: { x: [0.6, 2.2], y: [0.3, 1.9], z: [0.25, 0.95] }, // wall-mounted fold-down desks are short
 	bed: { x: [0.8, 2.4], y: [0.25, 2.4], z: [1.0, 2.5] },
 	nightstand: { x: [0.25, 0.8], y: [0.15, 0.85], z: [0.15, 0.6] },
 	dresser: { x: [0.5, 2.2], y: [0.6, 1.6], z: [0.3, 0.7] },
 	wardrobe: { x: [0.4, 3.5], y: [0.9, 2.6], z: [0.3, 0.9] },
-	bookcase: { x: [0.4, 3.5], y: [0.6, 2.8], z: [0.2, 0.6] },
+	bookcase: { x: [0.3, 3.5], y: [0.3, 2.8], z: [0.2, 0.6] }, // single cube shelves
 	cabinet: { x: [0.5, 3.0], y: [0.4, 2.4], z: [0.3, 0.7] },
 	"floor-lamp": { x: [0.2, 2.0], y: [1.1, 2.3], z: [0.2, 1.2] },
 	rug: { x: [0.4, 4.0], y: [0.003, 0.06], z: [0.4, 4.0] },
+	// room items (non-furniture)
+	"table-lamp": { x: [0.1, 0.7], y: [0.2, 0.9], z: [0.1, 0.7] },
+	"potted-plant": { x: [0.08, 1.4], y: [0.1, 2.4], z: [0.08, 1.4] },
+	vase: { x: [0.05, 0.5], y: [0.08, 0.8], z: [0.05, 0.5] },
+	"computer-monitor": { x: [0.3, 1.3], y: [0.25, 0.8], z: [0.05, 0.4] },
+	speaker: { x: [0.06, 1.2], y: [0.06, 1.9], z: [0.05, 0.6] },
+	"storage-basket": { x: [0.15, 0.8], y: [0.08, 0.8], z: [0.12, 0.8] },
+	book: { x: [0.1, 0.45], y: [0.01, 0.12], z: [0.12, 0.45] },
+	"throw-pillow": { x: [0.25, 0.9], y: [0.1, 0.6], z: [0.08, 0.6] },
+	laptop: { x: [0.25, 0.45], y: [0.15, 0.35], z: [0.18, 0.4] },
+	"wall-clock": { x: [0.15, 0.9], y: [0.15, 1.2], z: [0.02, 0.15] },
+	"wall-art": { x: [0.15, 2.0], y: [0.15, 2.0], z: [0.005, 0.2] },
+	mirror: { x: [0.15, 1.2], y: [0.2, 2.1], z: [0.01, 0.6] },
+	mug: { x: [0.05, 0.45], y: [0.04, 0.2], z: [0.05, 0.2] }, // incl. nesting sets in a row
+	tray: { x: [0.12, 0.8], y: [0.01, 0.2], z: [0.08, 0.6] },
+	candle: { x: [0.02, 0.4], y: [0.04, 0.45], z: [0.02, 0.4] },
+	"pendant-light": { x: [0.1, 1.5], y: [0.06, 1.8], z: [0.1, 1.5] }, // flush mounts are shallow
+	curtain: { x: [0.6, 3.5], y: [0.5, 3.0], z: [0.02, 0.3] },
+	"coffee-maker": { x: [0.08, 0.5], y: [0.1, 0.5], z: [0.08, 0.5] },
+	"pet-bed": { x: [0.3, 2.0], y: [0.08, 0.8], z: [0.3, 1.2] },
+	keyboard: { x: [0.08, 0.6], y: [0.015, 0.1], z: [0.06, 0.4] }, // a cable at the back counts
+	"throw-blanket": { x: [0.25, 2.0], y: [0.005, 1.6], z: [0.02, 2.0] }, // folded, laid flat or hung
+	turntable: { x: [0.3, 0.6], y: [0.06, 0.25], z: [0.25, 0.5] },
+	television: { x: [0.6, 2.5], y: [0.35, 1.6], z: [0.03, 0.6] },
+	"string-lights": { x: [0.3, 4.0], y: [0.05, 2.0], z: [0.01, 0.3] },
+	wreath: { x: [0.2, 0.9], y: [0.2, 1.0], z: [0.03, 0.25] },
+	"christmas-tree": { x: [0.15, 1.6], y: [0.25, 2.5], z: [0.15, 1.6] },
+	pumpkin: { x: [0.08, 0.6], y: [0.06, 0.6], z: [0.08, 0.6] },
 };
 
+const THIN = new Set([
+	"rug",
+	"book",
+	"wall-art",
+	"tray",
+	"keyboard",
+	"throw-blanket",
+	"mirror",
+	"curtain",
+	"wall-clock",
+	"string-lights",
+	"laptop",
+	"wreath",
+	"television",
+	"computer-monitor",
+]);
 const BACKED = new Set([
 	"sofa",
 	"armchair",
@@ -106,6 +152,7 @@ const FORBIDDEN = [
 
 // ---------- helpers ----------
 const r2 = (v) => Math.round(v * 100) / 100;
+const r3 = (v) => Math.round(v * 1000) / 1000; // sizes: millimetres, so thin things (books, art, trays) keep their depth
 const fmtPrice = (n, cur = "USD") =>
 	new Intl.NumberFormat("en-US", {
 		style: "currency",
@@ -279,9 +326,10 @@ const STYLE_WORDS = [
 function staticProblems(code) {
 	const bad = [];
 	if (!/function\s+build\s*\(/.test(code)) bad.push("no `function build(`");
+	const src = code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, ""); // comments may say "window" etc.
 	for (const [re, what] of FORBIDDEN)
-		if (re.test(code))
-			bad.push(`uses ${what} (${(code.match(re) || [""])[0].trim()})`);
+		if (re.test(src))
+			bad.push(`uses ${what} (${(src.match(re) || [""])[0].trim()})`);
 	return bad;
 }
 
@@ -376,9 +424,11 @@ function measure(code, kind) {
 			problems: [...problems, "bounding box is NaN"],
 			warnings,
 		};
-	const bbox = { x: r2(sz.x), y: r2(sz.y), z: r2(sz.z) };
-	const minDim =
-		kind === "rug" ? Math.max(sz.x, sz.z) : Math.min(sz.x, sz.y, sz.z);
+	const bbox = { x: r3(sz.x), y: r3(sz.y), z: r3(sz.z) };
+	// Flat or thin kinds are judged by their largest side: a book is 2 cm thick, wall art 1 cm deep.
+	const minDim = THIN.has(kind)
+		? Math.max(sz.x, sz.y, sz.z)
+		: Math.min(sz.x, sz.y, sz.z);
 	if (minDim < 0.02)
 		problems.push(`absurdly small (${bbox.x}x${bbox.y}x${bbox.z} m)`);
 	if (Math.max(sz.x, sz.y, sz.z) > 4)
@@ -435,6 +485,22 @@ function measure(code, kind) {
 	colors.forEach((x) => {
 		x.share = +(x.share / tot).toFixed(3);
 	});
+	// Support surfaces (seat, shelves, top), relative to the bottom-center of the bounding box like everything else.
+	let supports = [];
+	try {
+		supports = findSupports(THREE, g).map((p) => ({
+			...p,
+			y: r3(p.y - box.min.y),
+			x0: r3(p.x0 - c.x),
+			x1: r3(p.x1 - c.x),
+			z0: r3(p.z0 - c.z),
+			z1: r3(p.z1 - c.z),
+		}));
+	} catch (e) {
+		warnings.push(
+			"support analysis failed: " + String(e?.message || e).slice(0, 80),
+		);
+	}
 	return {
 		ok: problems.length === 0,
 		problems,
@@ -446,6 +512,7 @@ function measure(code, kind) {
 		backZ: backZ == null ? null : +backZ.toFixed(2),
 		buildMs,
 		colors,
+		supports,
 	};
 }
 
@@ -705,6 +772,88 @@ export function catalogRecords() {
 export function catalogItem(catalogId) {
 	const r = cache().byId.get(String(catalogId || ""));
 	return r ? publicItem(r) : null;
+}
+
+// ---------- support surfaces ----------
+const SEATING = new Set([
+	"sofa",
+	"armchair",
+	"bench",
+	"ottoman",
+	"dining-chair",
+	"office-chair",
+	"stool",
+	"pet-bed",
+]);
+const STORAGE = new Set([
+	"bookcase",
+	"cabinet",
+	"wardrobe",
+	"dresser",
+	"nightstand",
+	"desk",
+	"dining-table",
+	"coffee-table",
+	"side-table",
+	"console-table",
+	"tray",
+]);
+/** Names each surface (seat, arm, top, mattress, shelf N) so the editor can ask for "the middle shelf" or "the seat". */
+function labelSupports(kind, list, H) {
+	let out = list.map((p) => ({ ...p }));
+	if (STORAGE.has(kind) && out.length) {
+		const big = Math.max(...out.map((p) => p.area));
+		out = out.filter((p) => p.area >= 0.15 * big);
+	} // props modelled on shelves
+	const narrow = (p) => Math.min(p.x1 - p.x0, p.z1 - p.z0) < 0.15;
+	for (const p of out) if (p.y >= H - 0.02) p.name = "top";
+	if (SEATING.has(kind)) {
+		for (const p of out) if (!p.name && narrow(p)) p.name = "arm";
+		const cand = out.filter((p) => !p.name && p.y < 0.75 * H);
+		const best = cand.sort((a, b) => b.area - a.area)[0];
+		if (best)
+			for (const p of cand) if (Math.abs(p.y - best.y) <= 0.03) p.name = "seat";
+	} else if (kind === "bed") {
+		const best = out
+			.filter((p) => !p.name || p.name === "top")
+			.sort((a, b) => b.area - a.area)[0];
+		if (best) best.name = "mattress";
+	}
+	let n = 0;
+	for (const p of out.sort((a, b) => a.y - b.y))
+		if (!p.name) p.name = `shelf ${++n}`;
+	return out;
+}
+/**
+ * Support surfaces of a usable catalog item in its object frame (bottom-center origin, front +Z), scaled to `size`
+ * when the object was resized. [{ name, y, x0, x1, z0, z1, clear }] or [].
+ */
+export function catalogSupports(catalogId, size) {
+	const r = cache().byId.get(String(catalogId || ""));
+	const list = r?.m?.supports;
+	if (!list?.length || !r.bbox) return [];
+	// Same scale the renderer applies (uniform fit + at most 1.25 extra stretch per axis), so surfaces match what is drawn.
+	const k = fitScale(r.bbox, {
+		x: size?.x || r.size.x,
+		y: size?.y || r.size.y,
+		z: size?.z || r.size.z,
+	});
+	return labelSupports(r.kind, list, r.bbox.y).map((p) => ({
+		name: p.name,
+		y: r3(p.y * k.y),
+		x0: r3(p.x0 * k.x),
+		x1: r3(p.x1 * k.x),
+		z0: r3(p.z0 * k.z),
+		z1: r3(p.z1 * k.z),
+		clear: p.clear == null ? null : r3(p.clear * k.y),
+		...(p.mask && { mask: p.mask }),
+	}));
+}
+
+/** Raw measured size of a usable catalog model (what the renderer fits into the object's size box), or null. */
+export function catalogRaw(catalogId) {
+	const r = cache().byId.get(String(catalogId || ""));
+	return r?.bbox ? { ...r.bbox } : null;
 }
 
 /** The model source for a usable catalog id, or null. */

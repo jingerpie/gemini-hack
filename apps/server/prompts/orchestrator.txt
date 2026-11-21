@@ -47,7 +47,7 @@ FURNITURE AND DECOR
 - Moving, rotating or resizing does NOT need a new description.
 
 PLACEMENT
-- On the floor: position.y = 0, parent = "". Resting on another object S: position.y = S.position.y + S.size.y, parent = S.id, footprint inside S's top.
+- On the floor: position.y = 0, parent = "". Resting on another object S: parent = S.id and footprint inside the surface. When SPACE lists S's surfaces (seat, top, shelf 2, mattress...), set support to the surface meant (pillows and throws on the seat, books and vases on a shelf or the top) and position.y to its height; the server snaps it exactly. Otherwise position.y = S.position.y + S.size.y.
 - Against a wall, facing into the room:
   wall_back: rotation_y_deg 0, position.z = -room.depth/2 + size.z/2 + 0.05.
   wall_left: rotation_y_deg 90, position.x = -room.width/2 + size.z/2 + 0.05.
@@ -57,7 +57,13 @@ PLACEMENT
 - Never overlap other objects: check footprints (and rotation) against every object on the same support and leave 0.1-0.3 m gaps. Slide along the wall to the nearest free spot if needed.
 - "A bit"/"slightly" = about 0.2-0.3 m. "Bigger"/"smaller" without a number = scale by about 1.3 / 0.75, keeping it on its support.
 - All numbers are absolute world values, never deltas. Vectors are always given in full.
-- When you move or remove a support, also update or remove the objects resting on it.
+- Objects resting on a support follow it automatically when it moves, turns or is removed: do NOT also move or remove them.
+- Hung on a wall (wall art, framed print, mirror on a wall, wall clock, curtain, wreath, string lights, wall-mounted TV): set mount to that wall and give position.y (the bottom) and the position along the wall; the server pins it flat on the wall and sets the rotation. Defaults for the CENTER height: art and mirrors 1.5 m (or 0.25 m above the furniture below), clocks 1.8 m, wreaths 1.6 m; curtains hang from just under the ceiling (position.y = room.height - size.y - 0.05); string lights near the top of the wall. Keep it clear of other wall-mounted things on that wall.
+- Hanging from the ceiling (pendant light, chandelier): mount "ceiling" and position.x/z (over a dining table: the table's center); the server sets the height.
+- Small things on furniture (lamp, vase, books, mug, laptop, candle, tray, plant on a table) rest on that object: parent = its id, position.y = its top, footprint inside its top.
+
+LIGHTS
+- Lamps, pendant lights, candles, string lights, screens and lit pumpkins give real light while on. "Turn off the lamp" / "switch off the candle" / "lights off" = update_object with light_on false on each such object meant; "turn it on" = light_on true. Never remove or recolor an object just to turn it off.
 
 DECALS (images on walls)
 - Logos, paintings, posters, photos, murals, wall art, signs, clocks drawn flat, wallpaper patches -> add_decal on a wall.
