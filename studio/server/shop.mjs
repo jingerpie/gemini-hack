@@ -339,7 +339,7 @@ async function relevantCandidates(a, { model3d, maxPrice, limit, signal, timeout
   if (a.kind?.cats) runs.push(searchRaw(a.query, { ...base, categories: a.kind.cats.map(TAX) }));
   const res = await Promise.allSettled(runs);
   if (res.every(r => r.status === 'rejected')) throw res[0].reason;
-  const seen = new Set(); const pool = []; const rejected = [];
+  const seen = new Set(); const keys = new Set(); const pool = []; const rejected = [];
   // Category-filtered results first: they are the right kind of product by Shop's own taxonomy.
   [...res].reverse().forEach((r, i) => {
     if (r.status !== 'fulfilled') return;
@@ -348,8 +348,10 @@ async function relevantCandidates(a, { model3d, maxPrice, limit, signal, timeout
       if (seen.has(p._id)) return; seen.add(p._id);
       if (model3d && !p.model_glb) return;
       const why = rejectReason(p, a);
-      if (why) rejected.push(`${p.title.slice(0, 60)}: ${why}`);
-      else pool.push({ p, s: score(p, a, rank, fromCat) });
+      if (why) { rejected.push(`${p.title.slice(0, 60)}: ${why}`); return; }
+      const key = dedupeKey(p); // colour variants of one listing count once
+      if (keys.has(key)) return; keys.add(key);
+      pool.push({ p, s: score(p, a, rank, fromCat) });
     });
   });
   pool.sort((x, y) => y.s - x.s);
@@ -409,6 +411,74 @@ export async function shopSimilar({ name = '', description = '', query = '', col
   const { pool, seen } = await relevantCandidates(a, { model3d: false, maxPrice, limit: 12, signal, timeoutMs: SEARCH_TIMEOUT_MS });
   const products = pool.slice(0, limit).map(c => ({ ...clean(c.p), similar: true }));
   return { products, ms: Date.now() - t0, why: `${pool.length}/${seen} listings relevant for "${a.query}"` };
+}
+
+/** Same product in another colour / size from the same store -> same key. */
+function dedupeKey(p) {
+  const base = String(p.title).split(/\s[-|–—]\s|\s\|\s|,|\(/)[0];
+  return `${norm(p.store)}|${words(base).map(stem).filter(w => !DESCRIPTORS.has(w)).join(' ')}`;
+}
+
+/**
+ * Numbered options panel: a stable, relevance-ranked list of live products for a request, paged.
+ * Order: relevant listings WITH a merchant GLB first (model: "glb": in the room in seconds, the exact buyable item),
+ * then relevant listings without one (model: "photo": geometry generated from the product photo). Junk (covers,
+ * cushions, toys, samples, parts...) is rejected; colour variants of one product and repeat listings are merged; a page
+ * holds one listing per merchant when it can.
+ * Stability: every call ranks the same fixed window (the first 50 results of each search), so the same request + page
+ * gives the same cards and page n+1 never repeats page n. `more` is false once that window is used up.
+ * `exclude`: variant ids / urls / titles to leave out (e.g. what is already in the room); keep it the same across pages.
+ * Returns { products: (Product & { model: "glb" | "photo" })[], page, pageSize, more, ms, total, why }.
+ */
+export async function shopOptions({ name = '', description = '', query = '', color = '', maxPrice } = {}, { page = 0, pageSize = 3, budgetMs = 1500, exclude = [] } = {}) {
+  const t0 = Date.now();
+  page = Math.max(0, page | 0); pageSize = Math.max(1, Math.min(10, pageSize | 0 || 3));
+  const a = analyse({ name, description, query, color });
+  if (!a.head) return { products: [], page, pageSize, more: false, ms: 0, total: 0, why: 'could not tell what kind of object this is' };
+  const signal = AbortSignal.timeout(budgetMs);
+  const price = maxPrice ? { price: { max: Math.round(maxPrice * 100) } } : {};
+  const cats = a.kind?.cats ? { categories: a.kind.cats.map(TAX) } : null;
+  // Category-filtered runs first: the right kind of product by Shop's own taxonomy.
+  const runs = [
+    cats && { model3d: true, ...cats }, { model3d: true },
+    cats && { model3d: false, ...cats }, { model3d: false },
+  ].filter(Boolean);
+  const res = await Promise.allSettled(runs.map(r => searchRaw(a.query, { ...r, ...price, limit: 50, signal, timeoutMs: budgetMs })));
+  if (res.every(r => r.status === 'rejected')) return { products: [], page, pageSize, more: false, ms: Date.now() - t0, total: 0, why: `Shop search failed: ${res[0].reason?.message}` };
+  const ex = new Set(exclude.map(x => String(x)));
+  const exT = new Set(exclude.map(norm));
+  const seenId = new Set(); const seenKey = new Set(); const cands = []; let rejected = 0;
+  res.forEach((r, ri) => {
+    if (r.status !== 'fulfilled') return;
+    r.value.products.forEach((p, rank) => {
+      if (seenId.has(p._id)) return; seenId.add(p._id);
+      if (rejectReason(p, a)) { rejected++; return; }
+      if (ex.has(p.variant_id) || ex.has(p.url) || ex.has(p._id) || exT.has(norm(p.title))) return;
+      const key = dedupeKey(p);
+      if (seenKey.has(key)) return; seenKey.add(key);
+      cands.push({ p, glb: !!p.model_glb, s: score(p, a, rank, !!runs[ri].categories) });
+    });
+  });
+  // Tier (GLB first), then score; ties keep Shop's order (stable sort).
+  cands.sort((x, y) => (y.glb - x.glb) || (y.s - x.s));
+  // Pages with one listing per merchant when possible.
+  const ordered = []; const left = [...cands];
+  while (left.length) {
+    const stores = new Set();
+    for (let slot = 0; slot < pageSize && left.length; slot++) {
+      let i = left.findIndex(c => !stores.has(c.p.store));
+      if (i < 0) i = 0;
+      stores.add(left[i].p.store);
+      ordered.push(left.splice(i, 1)[0]);
+    }
+  }
+  const slice = ordered.slice(page * pageSize, (page + 1) * pageSize);
+  const products = slice.map(c => ({ ...clean(c.p), model: c.glb ? 'glb' : 'photo' }));
+  const glbs = cands.filter(c => c.glb).length;
+  return {
+    products, page, pageSize, more: ordered.length > (page + 1) * pageSize, ms: Date.now() - t0, total: ordered.length,
+    why: `${a.kind?.kind || 'object'} "${a.query}": ${ordered.length} relevant (${glbs} with GLB), ${rejected} rejected${res.some(r => r.status === 'rejected') ? '; some searches timed out' : ''}`,
+  };
 }
 
 // ---------- catalog entries ----------
