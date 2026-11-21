@@ -1,0 +1,68 @@
+/* App stylesheet: Tailwind + the shared shadcn theme (storefront light palette), plus studio-only tokens. */
+@import "@gemini-hack/ui/globals.css";
+@import "@fontsource-variable/inter";
+
+@theme {
+	--font-sans:
+		"Inter Variable", "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui,
+		sans-serif;
+	--font-mono:
+		"JetBrains Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+	/* one hue per agent; the timeline canvas uses the same values (ui/Timeline.tsx HUES) */
+	--color-patch: #366ad4;
+	--color-asset: #5433eb;
+	--color-decal: #0f8a7e;
+	--color-source: #b45309;
+	--color-designer: #b03a8c;
+	--color-ok: #12804a;
+	--color-warn: #b45309;
+	--color-bad: #d92a0f;
+	--color-faint: #9a9a9a;
+	--color-cursor: #5433eb;
+	--color-text-2: #333333;
+
+	--animate-breathe: breathe 1.6s ease-in-out infinite;
+	--animate-blink: blink 1s steps(1) infinite;
+	--animate-sweep: sweep 1.4s ease-in-out infinite;
+	--animate-pulse-dot: pulse-dot 1.4s ease-in-out infinite;
+
+	@keyframes breathe {
+		50% {
+			opacity: 0.45;
+		}
+	}
+	@keyframes blink {
+		50% {
+			opacity: 0;
+		}
+	}
+	@keyframes sweep {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(250%);
+		}
+	}
+	@keyframes pulse-dot {
+		0%,
+		100% {
+			box-shadow: 0 0 0 0 currentColor;
+		}
+		50% {
+			box-shadow: 0 0 0 4px transparent;
+		}
+	}
+}
+
+@layer base {
+	html,
+	body,
+	#root {
+		height: 100%;
+	}
+	body {
+		@apply text-sm leading-[1.4] antialiased;
+	}
+}

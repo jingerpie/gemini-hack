@@ -1,18 +1,14 @@
 {
-  "references": [{ "path": "../../packages/api" }],
-  "compilerOptions": {
-    "strict": true,
-    "esModuleInterop": true,
-    "jsx": "react-jsx",
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "skipLibCheck": true,
-    "types": ["vite/client"],
-    "rootDirs": ["."],
-    "paths": {
-      "@/*": ["./src/*"],
-      "@gemini-hack/ui/*": ["../../packages/ui/src/*"]
-    }
-  }
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"jsx": "react-jsx",
+		"strict": true,
+		"skipLibCheck": true,
+		"noEmit": true,
+		"types": ["vite/client"]
+	},
+	"include": ["src"]
 }
