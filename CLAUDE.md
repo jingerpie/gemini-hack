@@ -26,6 +26,7 @@ Bun workspace with Turborepo.
 - `apps/server`: back end (Hono on Node via `@hono/node-server`), port 8787. Routes in `app.mjs` and `routes/`, shared HTTP helpers in `http.mjs`. Prompts in `apps/server/prompts/`, test and bench scripts in `apps/server/test/`.
 - `packages/catalog` (`@gemini-hack/catalog`): pre-built shop catalog data (catalog.json, product images, build(THREE) model files).
 - `packages/ui` (`@gemini-hack/ui`): shared shadcn/ui components (Base UI, Tailwind v4). Build UI from these, styled with Tailwind classes; add new ones with `npx shadcn@latest add <name> -c packages/ui`. The studio palette and agent colours (`bg-patch`, `text-asset`, ...) live in `apps/web/src/styles/app.css`. `packages/config`: shared tsconfig base.
+- `apps/edge`: Cloudflare Worker for hackathon.sparkyidea.com. Serves `apps/web/dist` as static assets and forwards `/api/*` to `apps/server` running in a Cloudflare Container (`apps/server/Dockerfile`). Deploy with `bun run deploy`; the Gemini key is the Worker secret `GEMINI_API_KEY`.
 - `scripts/`: dev utilities (`gemini-agent.mjs` runs the Gemini CLI with the repo-root key).
 - `apps/web/src/types.ts` is the contract between server and front end. Read it first; change it deliberately.
 - Run: `bun install && bun run dev` (both apps via turbo). Needs `GEMINI_API_KEY` in the repo-root `.env`.

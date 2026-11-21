@@ -28,6 +28,7 @@
 		"build": "turbo run build",
 		"check-types": "turbo run check-types",
 		"check": "biome check --write .",
+		"deploy": "bun run --cwd apps/edge deploy",
 		"prepare": "husky"
 	},
 	"devDependencies": {
