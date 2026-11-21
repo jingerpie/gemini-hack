@@ -454,8 +454,13 @@ function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
 					</span>
 				)}
 				{g.status === "cancelled" && <span className={status}>cancelled</span>}
-				{g.status === "done" && g.model && (
-					<span className={status}>{g.model}</span>
+				{g.current ? (
+					<span className={status}>
+						Say “swap for the second one” or a name
+					</span>
+				) : (
+					g.status === "done" &&
+					g.model && <span className={status}>{g.model}</span>
 				)}
 				{g.status === "running" && (
 					<Button
@@ -472,7 +477,12 @@ function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
 				<div className="grid grid-cols-2 gap-2">
 					{g.products.map((p, i) => (
 						// biome-ignore lint/suspicious/noArrayIndexKey: products have no id and the list never reorders
-						<ProductCard key={i} p={p} />
+						<ProductCard
+							key={i}
+							p={p}
+							n={g.current ? i + 1 : undefined}
+							inRoom={!!g.current && p.catalogId === g.current}
+						/>
 					))}
 				</div>
 			)}
@@ -480,7 +490,15 @@ function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
 	);
 }
 
-function ProductCard({ p }: { p: Product }) {
+function ProductCard({
+	p,
+	n,
+	inRoom,
+}: {
+	p: Product;
+	n?: number;
+	inRoom?: boolean;
+}) {
 	const href = safeHttp(p.url);
 	const img = safeHttp(p.image_url);
 	// 0 proxy, 1 direct, 2 placeholder. Same-origin images (catalog photos served by the app) skip the proxy.
@@ -495,8 +513,10 @@ function ProductCard({ p }: { p: Product }) {
 		: null;
 	const title = String(p.title ?? "").slice(0, 200);
 	const price = String(p.price ?? "").slice(0, 40);
-	const cls =
-		"flex min-w-0 flex-col gap-2 rounded-[20px] bg-card p-1.5 pb-2.5 shadow-[var(--shadow-soft)] transition-shadow";
+	const cls = cn(
+		"bg-card flex min-w-0 flex-col gap-2 rounded-[20px] p-1.5 pb-2.5 shadow-[var(--shadow-soft)] transition-shadow",
+		inRoom && "ring-primary ring-2",
+	);
 	const body = (
 		<>
 			<span className="bg-muted relative block aspect-square overflow-hidden rounded-2xl">
@@ -516,6 +536,16 @@ function ProductCard({ p }: { p: Product }) {
 						aria-hidden
 					>
 						<House className="size-6" />
+					</span>
+				)}
+				{(n || inRoom) && (
+					<span
+						className={cn(
+							"absolute top-2 right-2 inline-flex h-5.5 items-center rounded-full px-2 text-xs font-semibold",
+							inRoom ? "bg-primary text-white" : "text-foreground bg-white/90",
+						)}
+					>
+						{inRoom ? "In room" : n}
 					</span>
 				)}
 				{price && (

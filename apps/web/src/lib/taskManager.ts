@@ -7,12 +7,14 @@
 // Background jobs (asset / decal) start the instant their parent patch *returns* (so the timeline hand-off is
 // exact) but only touch the engine after the parent's ops have been applied (`applied` promise).
 
+import { alternativesFor, kindOf } from "../catalog/listings";
 import type {
 	AssetEvent,
 	Engine,
 	HistoryItem,
 	Job,
 	Op,
+	Options,
 	PatchResponse,
 	Product,
 	Scene,
@@ -45,6 +47,9 @@ export type ShopGroup = {
 	statusLine: string;
 	model?: string;
 	products: Product[];
+	/** Catalog alternatives: the catalog id now in the room (its card is marked), and the furniture kind. */
+	current?: string;
+	kind?: string;
 };
 
 const URL_PARAMS = new URLSearchParams(
@@ -672,6 +677,7 @@ export class TaskManager {
 					utterance,
 					...(image ? { image } : {}),
 					...(view ? { view } : {}),
+					...this.optionsOnScreen(scene),
 				},
 				abort.signal,
 			)
@@ -829,6 +835,7 @@ export class TaskManager {
 						? `${n} op${n === 1 ? "" : "s"} applied · ${res.model || "orchestrator"}`
 						: res.say?.trim() || "no change",
 				});
+				this.offerAlternatives(res.ops);
 				// Patches that hand off jobs are verified when the job lands (a placeholder would score low).
 				if (n && !res.jobs.length && !pending)
 					this.verify(taskId, t.utterance ?? "");
@@ -1089,6 +1096,61 @@ export class TaskManager {
 			);
 		}
 		this.emit();
+	}
+
+	/** A catalog item landed or was swapped: show other catalog items of the same kind for it. */
+	private offerAlternatives(ops: Op[]) {
+		let changed = false;
+		for (const op of ops) {
+			if (op.op === "remove") {
+				const before = this.shop.length;
+				this.shop = this.shop.filter((g) => g.objectId !== op.id || !g.current);
+				changed ||= this.shop.length !== before;
+				continue;
+			}
+			if (op.op !== "add" && op.op !== "update") continue;
+			const fields = op.op === "add" ? op.object : op.changes;
+			const id = fields?.product?.catalogId;
+			if (!id) continue;
+			const products = alternativesFor(id);
+			if (!products.length) continue;
+			const name =
+				fields.name ||
+				this.engine?.getScene().objects.find((o) => o.id === op.id)?.name ||
+				op.id;
+			this.shop = this.shop.filter((g) => g.objectId !== op.id);
+			this.shop.push({
+				objectId: op.id,
+				name,
+				taskId: "",
+				status: "done",
+				statusLine: "",
+				products,
+				current: id,
+				kind: kindOf(id),
+			});
+			changed = true;
+		}
+		if (changed) this.emit();
+	}
+
+	/** The newest catalog alternatives on screen, sent so "the second one" / "the Pendulum" swaps to that exact item. */
+	private optionsOnScreen(scene: Scene): { options?: Options } {
+		const g = [...this.shop]
+			.reverse()
+			.find((x) => x.current && scene.objects.some((o) => o.id === x.objectId));
+		if (!g) return {};
+		return {
+			options: {
+				objectId: g.objectId,
+				query: g.kind || "",
+				products: g.products,
+				page: 0,
+				pageSize: g.products.length,
+				more: false,
+				chosen: g.products.findIndex((p) => p.catalogId === g.current) + 1,
+			},
+		};
 	}
 
 	/** Drop product groups whose object has left the scene (only after it was seen there once). */

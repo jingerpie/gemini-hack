@@ -1141,7 +1141,9 @@ export async function orchestrate(
 		tools: declare([
 			...TOOLS,
 			...(withDesigner ? [ASK_DESIGNER] : []),
-			...(hasOptions ? [CHOOSE_OPTION, MORE_OPTIONS] : []),
+			...(hasOptions
+				? [CHOOSE_OPTION, ...(options.more ? [MORE_OPTIONS] : [])]
+				: []),
 		]),
 		toolConfig: { functionCallingConfig: { mode: "ANY" } },
 		generationConfig: { thinkingConfig: { thinkingLevel } },
@@ -1316,7 +1318,9 @@ function optionsText(o) {
 					`${start + i + 1}. ${p.title} | ${p.price} | ${p.store} | ${p.model || (p.model_glb ? "glb" : p.catalogId ? "catalog" : "photo")}${p.similar ? " | similar" : ""}`,
 			)
 			.join("\n") +
-		`\nRules: a card number or a description of one card -> choose_option(number). "More / others / next" -> more_options(). A refinement ("darker", "cheaper", "leather", "under $500") -> update_object on ${o.objectId} with a new shop_query (+ max_price).`
+		(o.products.every((p) => p.catalogId)
+			? `\nRules: a card number, "the second one", a card's name or price, or a description of one card -> choose_option(number). A refinement not on screen ("darker", "cheaper", "leather", "under $500") -> update_object on ${o.objectId} with catalog_kind + catalog_query (+ max_price).`
+			: `\nRules: a card number or a description of one card -> choose_option(number). "More / others / next" -> more_options(). A refinement ("darker", "cheaper", "leather", "under $500") -> update_object on ${o.objectId} with a new shop_query (+ max_price).`)
 	);
 }
 
@@ -1362,11 +1366,13 @@ export async function patch(
 				options.products[
 					n - 1 - (options.page || 0) * (options.pageSize || PAGE_SIZE)
 				];
-			if (!p)
+			if (!p?.catalogId)
 				return {
 					ops: [],
 					jobs: [],
-					say: `Card ${n} isn't on screen.`,
+					say: p
+						? "That one isn't in the catalog."
+						: `Card ${n} isn't on screen.`,
 					ms: Date.now() - t0,
 					model: PATCH_MODEL,
 					_dropped: [`choose_option ${n} not on screen`],
