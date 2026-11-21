@@ -36,7 +36,18 @@
     "handle": "junction",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/aab2fef03837591922e6b876e991e87a73386a5680b7f750b471a6c58e6c216f.png",
     "imageFile": "sofa/03-junction.png",
-    "modelFile": "sofa/03-junction.build.js"
+    "modelFile": "sofa/03-junction.build.js",
+    "listing": {
+      "option": "Overall width",
+      "value": "160 cm",
+      "variants": [
+        "160 cm",
+        "230 cm"
+      ],
+      "target": {
+        "x": 1.6
+      }
+    }
   },
   {
     "kind": "sofa",
@@ -205,7 +216,18 @@
     "handle": "everyday-control",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/0f595023-eef9-48e1-96dd-f2de5181e68d/b01a52afe681809528106262c2ae1aa25f62c532f427d94770abcc4bc1b0fc93.png",
     "imageFile": "office-chair/01-everyday-control.png",
-    "modelFile": "office-chair/01-everyday-control.build.js"
+    "modelFile": "office-chair/01-everyday-control.build.js",
+    "listing": {
+      "option": "Seat Height",
+      "value": "43–53 cm",
+      "variants": [
+        "43–53 cm",
+        "48–61 cm"
+      ],
+      "target": {
+        "seatHeight": 0.43
+      }
+    }
   },
   {
     "kind": "office-chair",
@@ -270,7 +292,18 @@
     "handle": "split-seat",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/0f595023-eef9-48e1-96dd-f2de5181e68d/e6588beb0fdc08a7afbd0b3ceb569bee58bee3ca8cf4c74de0b7f97927562986.png",
     "imageFile": "stool/01-split-seat.png",
-    "modelFile": "stool/01-split-seat.build.js"
+    "modelFile": "stool/01-split-seat.build.js",
+    "listing": {
+      "option": "Seat Height",
+      "value": "49–63 cm",
+      "variants": [
+        "49–63 cm",
+        "59–79 cm"
+      ],
+      "target": {
+        "seatHeight": 0.49
+      }
+    }
   },
   {
     "kind": "stool",
@@ -296,7 +329,18 @@
     "handle": "perch",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/51653f6338ea791f255c2d181ed26c3033b53c69f99eed892600b484db923be8.png",
     "imageFile": "stool/03-perch.png",
-    "modelFile": "stool/03-perch.build.js"
+    "modelFile": "stool/03-perch.build.js",
+    "listing": {
+      "option": "Seat height",
+      "value": "63 cm",
+      "variants": [
+        "63 cm",
+        "67 cm"
+      ],
+      "target": {
+        "seatHeight": 0.63
+      }
+    }
   },
   {
     "kind": "stool",
@@ -335,7 +379,18 @@
     "handle": "boot-room-seat",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/94ebe62d-14c3-4784-a50f-87c1c56c47ed/770eb4920660bf94d9d9feee7c4c20384c6114bb8ec2c9864a016a0a841f67c2.png",
     "imageFile": "bench/01-boot-room-seat.png",
-    "modelFile": "bench/01-boot-room-seat.build.js"
+    "modelFile": "bench/01-boot-room-seat.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "100 cm",
+      "variants": [
+        "100 cm",
+        "130 cm"
+      ],
+      "target": {
+        "x": 1
+      }
+    }
   },
   {
     "kind": "bench",
@@ -348,7 +403,18 @@
     "handle": "rail",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/104cfbd63b8e7836d4e58c9e4a673fea731a54ab4d860e37c657c73dbb074482.png",
     "imageFile": "bench/02-rail.png",
-    "modelFile": "bench/02-rail.build.js"
+    "modelFile": "bench/02-rail.build.js",
+    "listing": {
+      "option": "Length",
+      "value": "140 cm",
+      "variants": [
+        "140 cm",
+        "180 cm"
+      ],
+      "target": {
+        "x": 1.4000000000000001
+      }
+    }
   },
   {
     "kind": "bench",
@@ -361,7 +427,18 @@
     "handle": "arrival",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/b2f7bc846391a9f362a093acafdd4844a5de16a83593158e21111bf0b0bab4ac.png",
     "imageFile": "bench/03-arrival.png",
-    "modelFile": "bench/03-arrival.build.js"
+    "modelFile": "bench/03-arrival.build.js",
+    "listing": {
+      "option": "Overall width",
+      "value": "80 cm",
+      "variants": [
+        "80 cm",
+        "110 cm"
+      ],
+      "target": {
+        "x": 0.8
+      }
+    }
   },
   {
     "kind": "bench",
@@ -400,7 +477,20 @@
     "handle": "low-circle",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/396e8447-e79f-48d3-be0c-be0a70592e12/31a27b925e86e67e0ddda91213d40f85d26b87453947434017b1d85b9b0be589.png",
     "imageFile": "ottoman/01-low-circle.png",
-    "modelFile": "ottoman/01-low-circle.build.js"
+    "modelFile": "ottoman/01-low-circle.build.js",
+    "listing": {
+      "option": "Size",
+      "value": "50 cm diameter × 30 cm high",
+      "variants": [
+        "50 cm diameter × 30 cm high",
+        "60 cm diameter × 35 cm high"
+      ],
+      "target": {
+        "x": 0.5,
+        "z": 0.5,
+        "y": 0.3
+      }
+    }
   },
   {
     "kind": "ottoman",
@@ -465,7 +555,18 @@
     "handle": "harvest-trestle",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/94ebe62d-14c3-4784-a50f-87c1c56c47ed/226156ec72ff0123f4010e888296d1e7d1b448aec72847933f115d01883fd66c.png",
     "imageFile": "dining-table/01-harvest-trestle.png",
-    "modelFile": "dining-table/01-harvest-trestle.build.js"
+    "modelFile": "dining-table/01-harvest-trestle.build.js",
+    "listing": {
+      "option": "Length",
+      "value": "160 cm",
+      "variants": [
+        "160 cm",
+        "190 cm"
+      ],
+      "target": {
+        "x": 1.6
+      }
+    }
   },
   {
     "kind": "dining-table",
@@ -491,7 +592,19 @@
     "handle": "gather",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/e43d70f0cddf5bce10d41420bc84003e85425236ebb32ca44668e690eed7b032.png",
     "imageFile": "dining-table/03-gather.png",
-    "modelFile": "dining-table/03-gather.build.js"
+    "modelFile": "dining-table/03-gather.build.js",
+    "listing": {
+      "option": "Length",
+      "value": "200 cm",
+      "variants": [
+        "200 cm",
+        "240 cm",
+        "280 cm"
+      ],
+      "target": {
+        "x": 2
+      }
+    }
   },
   {
     "kind": "dining-table",
@@ -543,7 +656,18 @@
     "handle": "terrace",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/d6803d66f7d177e03f8367aac1d4447403e89f3aec032fe71f5f8af7a131158c.png",
     "imageFile": "coffee-table/02-terrace.png",
-    "modelFile": "coffee-table/02-terrace.build.js"
+    "modelFile": "coffee-table/02-terrace.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "100 cm",
+      "variants": [
+        "100 cm",
+        "120 cm"
+      ],
+      "target": {
+        "x": 1
+      }
+    }
   },
   {
     "kind": "coffee-table",
@@ -556,7 +680,18 @@
     "handle": "coffee-table",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/0b2bd3d6877b0bd9f05079581fca64c4ef8c81fe9a9796fcbb79ead34a13659e.png",
     "imageFile": "coffee-table/03-low-span.png",
-    "modelFile": "coffee-table/03-low-span.build.js"
+    "modelFile": "coffee-table/03-low-span.build.js",
+    "listing": {
+      "option": "Length",
+      "value": "1200 mm",
+      "variants": [
+        "1200 mm",
+        "1500 mm"
+      ],
+      "target": {
+        "x": 1.2
+      }
+    }
   },
   {
     "kind": "coffee-table",
@@ -569,7 +704,18 @@
     "handle": "plane",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/2112b927987690fe37924e970a23fc0d82ec0eb9efe4dea5597c9742421e3e19.png",
     "imageFile": "coffee-table/04-plane.png",
-    "modelFile": "coffee-table/04-plane.build.js"
+    "modelFile": "coffee-table/04-plane.build.js",
+    "listing": {
+      "option": "Length",
+      "value": "110 cm",
+      "variants": [
+        "110 cm",
+        "140 cm"
+      ],
+      "target": {
+        "x": 1.1
+      }
+    }
   },
   {
     "kind": "coffee-table",
@@ -608,7 +754,19 @@
     "handle": "axial",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a3d53c13-f572-4d4a-8e00-2aa8fda13995/9eea8a522c5e483b5d0ad3e59e72ef0ebf3e46c7c8355b34f52d204a47163b41.png",
     "imageFile": "side-table/02-axial.png",
-    "modelFile": "side-table/02-axial.build.js"
+    "modelFile": "side-table/02-axial.build.js",
+    "listing": {
+      "option": "Diameter",
+      "value": "35 cm",
+      "variants": [
+        "35 cm",
+        "45 cm"
+      ],
+      "target": {
+        "x": 0.35000000000000003,
+        "z": 0.35000000000000003
+      }
+    }
   },
   {
     "kind": "side-table",
@@ -621,7 +779,18 @@
     "handle": "sidecar",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a3d53c13-f572-4d4a-8e00-2aa8fda13995/fbc38d5e50bb41e9c72e665a760e5616faa4a031ceb7cf521a5c5e100db89c30.png",
     "imageFile": "side-table/03-sidecar.png",
-    "modelFile": "side-table/03-sidecar.build.js"
+    "modelFile": "side-table/03-sidecar.build.js",
+    "listing": {
+      "option": "Height",
+      "value": "60 cm",
+      "variants": [
+        "60 cm",
+        "66 cm"
+      ],
+      "target": {
+        "y": 0.6
+      }
+    }
   },
   {
     "kind": "side-table",
@@ -660,7 +829,18 @@
     "handle": "hallway-drawers",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/94ebe62d-14c3-4784-a50f-87c1c56c47ed/b0a3e293d4f0f40c4da66caf879e73c55559cf497acb14257d16ffac86d76b17.png",
     "imageFile": "console-table/01-hallway-drawers.png",
-    "modelFile": "console-table/01-hallway-drawers.build.js"
+    "modelFile": "console-table/01-hallway-drawers.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "100 cm",
+      "variants": [
+        "100 cm",
+        "130 cm"
+      ],
+      "target": {
+        "x": 1
+      }
+    }
   },
   {
     "kind": "console-table",
@@ -673,7 +853,18 @@
     "handle": "console-table",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/624641c90bbfc6a713070e9c8a23231c6122d37f9a050c3db62a229c66731f11.png",
     "imageFile": "console-table/02-entry-span.png",
-    "modelFile": "console-table/02-entry-span.build.js"
+    "modelFile": "console-table/02-entry-span.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "1200 mm",
+      "variants": [
+        "1200 mm",
+        "1600 mm"
+      ],
+      "target": {
+        "x": 1.2
+      }
+    }
   },
   {
     "kind": "console-table",
@@ -725,7 +916,18 @@
     "handle": "draft",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/3a9d8eb51fedfdfb95f5daf07d704ff78e5d3878cf8e9117ebcf62f1edb97f52.png",
     "imageFile": "desk/01-draft.png",
-    "modelFile": "desk/01-draft.build.js"
+    "modelFile": "desk/01-draft.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "120 cm",
+      "variants": [
+        "120 cm",
+        "150 cm"
+      ],
+      "target": {
+        "x": 1.2
+      }
+    }
   },
   {
     "kind": "desk",
@@ -738,7 +940,18 @@
     "handle": "folio",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/629a6c3381ce07e72c4d59d4d0dace7d7cb5f672709ec4dbe5cd86109c94b0ec.png",
     "imageFile": "desk/02-folio.png",
-    "modelFile": "desk/02-folio.build.js"
+    "modelFile": "desk/02-folio.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "90 cm",
+      "variants": [
+        "90 cm",
+        "110 cm"
+      ],
+      "target": {
+        "x": 0.9
+      }
+    }
   },
   {
     "kind": "desk",
@@ -751,7 +964,18 @@
     "handle": "desk",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/919c66a7b336603edc96e3f162a5c8cf1a1d57956c805c0b9c51a7f0ad83fd80.png",
     "imageFile": "desk/03-focus.png",
-    "modelFile": "desk/03-focus.build.js"
+    "modelFile": "desk/03-focus.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "1400 mm",
+      "variants": [
+        "1400 mm",
+        "1800 mm"
+      ],
+      "target": {
+        "x": 1.4000000000000001
+      }
+    }
   },
   {
     "kind": "desk",
@@ -764,7 +988,19 @@
     "handle": "daily-rise",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/4d0434dc-01fb-44af-ae0a-0c01cab3a44b/fad6db08ac37037bdc77060831242fd48fe5a1836c94383ef0585ff9dd77cef8.png",
     "imageFile": "desk/04-daily-rise.png",
-    "modelFile": "desk/04-daily-rise.build.js"
+    "modelFile": "desk/04-daily-rise.build.js",
+    "listing": {
+      "option": "Size",
+      "value": "Compact — 110 × 60 cm",
+      "variants": [
+        "Compact — 110 × 60 cm",
+        "Standard — 140 × 70 cm"
+      ],
+      "target": {
+        "x": 1.1,
+        "z": 0.6
+      }
+    }
   },
   {
     "kind": "desk",
@@ -790,7 +1026,22 @@
     "handle": "planked-rest",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/94ebe62d-14c3-4784-a50f-87c1c56c47ed/ce2d02f2c3d2c2c987511b4c91b308816b562cdd0e862be86c0a2a5dd1dd9a2a.png",
     "imageFile": "bed/01-planked-rest.png",
-    "modelFile": "bed/01-planked-rest.build.js"
+    "modelFile": "bed/01-planked-rest.build.js",
+    "listing": {
+      "option": "Mattress Size",
+      "value": "135 × 190 cm",
+      "variants": [
+        "135 × 190 cm",
+        "150 × 200 cm",
+        "180 × 200 cm"
+      ],
+      "target": {
+        "mattress": {
+          "x": 1.35,
+          "z": 1.9000000000000001
+        }
+      }
+    }
   },
   {
     "kind": "bed",
@@ -803,7 +1054,21 @@
     "handle": "cloud-ladder",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/9f571405-f1d0-43b3-b604-36375f0cf016/c3f413b930bfd80df6ab38fa8f6d7c2d37137452613c138b63bafb9f3238aac6.png",
     "imageFile": "bed/02-cloud-ladder.png",
-    "modelFile": "bed/02-cloud-ladder.build.js"
+    "modelFile": "bed/02-cloud-ladder.build.js",
+    "listing": {
+      "option": "Mattress dimensions (W × L)",
+      "value": "90 × 190 cm",
+      "variants": [
+        "90 × 190 cm",
+        "90 × 200 cm"
+      ],
+      "target": {
+        "mattress": {
+          "x": 0.9,
+          "z": 1.9000000000000001
+        }
+      }
+    }
   },
   {
     "kind": "bed",
@@ -816,7 +1081,21 @@
     "handle": "channel",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/9dd4493aeae7f89d276835d313767613adf8be8714d225d9b24486ddb8c94f85.png",
     "imageFile": "bed/03-channel.png",
-    "modelFile": "bed/03-channel.build.js"
+    "modelFile": "bed/03-channel.build.js",
+    "listing": {
+      "option": "Mattress Size",
+      "value": "Queen (60 × 80 in)",
+      "variants": [
+        "Queen (60 × 80 in)",
+        "King (76 × 80 in)"
+      ],
+      "target": {
+        "mattress": {
+          "x": 1.524,
+          "z": 2.032
+        }
+      }
+    }
   },
   {
     "kind": "bed",
@@ -829,7 +1108,21 @@
     "handle": "framework",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/d51e1fe68748e07e2c638caf3c47c16489579445b61da59e11aaa3e6045cc775.png",
     "imageFile": "bed/04-framework.png",
-    "modelFile": "bed/04-framework.build.js"
+    "modelFile": "bed/04-framework.build.js",
+    "listing": {
+      "option": "Mattress Size",
+      "value": "Queen (60 × 80 in)",
+      "variants": [
+        "Queen (60 × 80 in)",
+        "King (76 × 80 in)"
+      ],
+      "target": {
+        "mattress": {
+          "x": 1.524,
+          "z": 2.032
+        }
+      }
+    }
   },
   {
     "kind": "bed",
@@ -842,7 +1135,21 @@
     "handle": "haven",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/da7b8b04ea9f6a880ada9d1d07d7f5206483fa4bf5cc2c412875206182447c78.png",
     "imageFile": "bed/05-haven.png",
-    "modelFile": "bed/05-haven.build.js"
+    "modelFile": "bed/05-haven.build.js",
+    "listing": {
+      "option": "Mattress size",
+      "value": "140 × 200 cm",
+      "variants": [
+        "140 × 200 cm",
+        "160 × 200 cm"
+      ],
+      "target": {
+        "mattress": {
+          "x": 1.4000000000000001,
+          "z": 2
+        }
+      }
+    }
   },
   {
     "kind": "nightstand",
@@ -881,7 +1188,18 @@
     "handle": "bedside-table",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/6e4d4aa383b2b57ef354ccbc3b5fa0134c4f98e59d3efa92c86a2f31207ace0d.png",
     "imageFile": "nightstand/03-night-keep.png",
-    "modelFile": "nightstand/03-night-keep.build.js"
+    "modelFile": "nightstand/03-night-keep.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "450 mm",
+      "variants": [
+        "450 mm",
+        "600 mm"
+      ],
+      "target": {
+        "x": 0.45
+      }
+    }
   },
   {
     "kind": "nightstand",
@@ -894,7 +1212,18 @@
     "handle": "ledge",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/0123af190066fb279177614a9022557a4e0c1e7c574559dc2c9ff68fa9c93ebe.png",
     "imageFile": "nightstand/04-ledge.png",
-    "modelFile": "nightstand/04-ledge.build.js"
+    "modelFile": "nightstand/04-ledge.build.js",
+    "listing": {
+      "option": "Overall width",
+      "value": "35 cm",
+      "variants": [
+        "35 cm",
+        "50 cm"
+      ],
+      "target": {
+        "x": 0.35000000000000003
+      }
+    }
   },
   {
     "kind": "nightstand",
@@ -959,7 +1288,18 @@
     "handle": "keepsake",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/242f3275d3f7d4113f1d4abbfd02ddfefe2810956d971aeb443c9356ef9a1967.png",
     "imageFile": "dresser/04-keepsake.png",
-    "modelFile": "dresser/04-keepsake.build.js"
+    "modelFile": "dresser/04-keepsake.build.js",
+    "listing": {
+      "option": "Overall width",
+      "value": "80 cm",
+      "variants": [
+        "80 cm",
+        "100 cm"
+      ],
+      "target": {
+        "x": 0.8
+      }
+    }
   },
   {
     "kind": "dresser",
@@ -998,7 +1338,18 @@
     "handle": "walk-in-wardrobe-system",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/f1eb62b286a3169c114f8835dbf8b7e792b9b3e34263548ae71ddeccfd6d9422.png",
     "imageFile": "wardrobe/02-dressing-grid.png",
-    "modelFile": "wardrobe/02-dressing-grid.build.js"
+    "modelFile": "wardrobe/02-dressing-grid.build.js",
+    "listing": {
+      "option": "Wall Length",
+      "value": "2400 mm",
+      "variants": [
+        "2400 mm",
+        "3600 mm"
+      ],
+      "target": {
+        "x": 2.4
+      }
+    }
   },
   {
     "kind": "wardrobe",
@@ -1011,7 +1362,19 @@
     "handle": "warm-bone-closet-tower-pack-912e32db6b0256f1",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/a8d4e43eb61744e88aec3437cdc4c860e94f44d3d6f37c3391814d04aa550638.png",
     "imageFile": "wardrobe/03-warm-bone-closet-tower.png",
-    "modelFile": "wardrobe/03-warm-bone-closet-tower.build.js"
+    "modelFile": "wardrobe/03-warm-bone-closet-tower.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "24 inches",
+      "variants": [
+        "24 inches",
+        "30 inches",
+        "36 inches"
+      ],
+      "target": {
+        "x": 0.6095999999999999
+      }
+    }
   },
   {
     "kind": "wardrobe",
@@ -1024,7 +1387,18 @@
     "handle": "enclose",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/304d397f56710f76fb45c3cb3a78fd01542c04c033adaeeda754ff1497792e49.png",
     "imageFile": "wardrobe/04-enclose.png",
-    "modelFile": "wardrobe/04-enclose.build.js"
+    "modelFile": "wardrobe/04-enclose.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "120 cm",
+      "variants": [
+        "120 cm",
+        "180 cm"
+      ],
+      "target": {
+        "x": 1.2
+      }
+    }
   },
   {
     "kind": "wardrobe",
@@ -1063,7 +1437,18 @@
     "handle": "open-bay",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/7dab6a53-8fc8-4e59-8944-0c911b6ca81d/5e5c86974ec6a1b577ac1dbd8381d464917433bb547a66fe6b05cdfb84ce9252.png",
     "imageFile": "bookcase/02-open-bay.png",
-    "modelFile": "bookcase/02-open-bay.build.js"
+    "modelFile": "bookcase/02-open-bay.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "600 mm",
+      "variants": [
+        "600 mm",
+        "1200 mm"
+      ],
+      "target": {
+        "x": 0.6
+      }
+    }
   },
   {
     "kind": "bookcase",
@@ -1076,7 +1461,18 @@
     "handle": "story-steps",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/9f571405-f1d0-43b3-b604-36375f0cf016/d71b02eb272d104d7a9ae4cb399765a51f6d0295a3c0f1181d514b43a7131f9b.png",
     "imageFile": "bookcase/03-story-steps.png",
-    "modelFile": "bookcase/03-story-steps.build.js"
+    "modelFile": "bookcase/03-story-steps.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "80 cm",
+      "variants": [
+        "80 cm",
+        "110 cm"
+      ],
+      "target": {
+        "x": 0.8
+      }
+    }
   },
   {
     "kind": "bookcase",
@@ -1089,7 +1485,18 @@
     "handle": "built-in-bookcase",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/ea5bcf873ff58f62698e6fc9cf6acbd176ac5b3942ddd491e8482d73ed1d55b8.png",
     "imageFile": "bookcase/04-reading-wall.png",
-    "modelFile": "bookcase/04-reading-wall.build.js"
+    "modelFile": "bookcase/04-reading-wall.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "1800 mm",
+      "variants": [
+        "1800 mm",
+        "2700 mm"
+      ],
+      "target": {
+        "x": 1.8
+      }
+    }
   },
   {
     "kind": "bookcase",
@@ -1115,7 +1522,18 @@
     "handle": "pantry-keeper",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/94ebe62d-14c3-4784-a50f-87c1c56c47ed/9116eb7aec332705e77ef7ba9d65ded6cfd7c6b8b75e7e3e0efc56f6fc56e4b8.png",
     "imageFile": "cabinet/01-pantry-keeper.png",
-    "modelFile": "cabinet/01-pantry-keeper.build.js"
+    "modelFile": "cabinet/01-pantry-keeper.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "140 cm",
+      "variants": [
+        "140 cm",
+        "170 cm"
+      ],
+      "target": {
+        "x": 1.4000000000000001
+      }
+    }
   },
   {
     "kind": "cabinet",
@@ -1128,7 +1546,18 @@
     "handle": "signal",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/71e21745dbcc4548cf134cf9cffc3678e23d10ed4783f81b4f988245efcd73ed.png",
     "imageFile": "cabinet/02-signal.png",
-    "modelFile": "cabinet/02-signal.build.js"
+    "modelFile": "cabinet/02-signal.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "160 cm",
+      "variants": [
+        "160 cm",
+        "200 cm"
+      ],
+      "target": {
+        "x": 1.6
+      }
+    }
   },
   {
     "kind": "cabinet",
@@ -1141,7 +1570,18 @@
     "handle": "built-in-media-cabinet",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/539839103e3fd666a7d5d9e732eca03e68f9b5b9edc19613e86c7622bc4a51db.png",
     "imageFile": "cabinet/03-screen-line.png",
-    "modelFile": "cabinet/03-screen-line.build.js"
+    "modelFile": "cabinet/03-screen-line.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "2400 mm",
+      "variants": [
+        "2400 mm",
+        "3000 mm"
+      ],
+      "target": {
+        "x": 2.4
+      }
+    }
   },
   {
     "kind": "cabinet",
@@ -1154,7 +1594,18 @@
     "handle": "lowline-sideboard",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/24a0614d-eaa6-475c-adbb-25ac29b6838d/4ab4a826c435dd6535bb0985318f2e5d21f7476c393c670b11e3fdc955f6adc5.png",
     "imageFile": "cabinet/04-lowline.png",
-    "modelFile": "cabinet/04-lowline.build.js"
+    "modelFile": "cabinet/04-lowline.build.js",
+    "listing": {
+      "option": "Width",
+      "value": "140 cm",
+      "variants": [
+        "140 cm",
+        "180 cm"
+      ],
+      "target": {
+        "x": 1.4000000000000001
+      }
+    }
   },
   {
     "kind": "cabinet",
@@ -1245,7 +1696,21 @@
     "handle": "doorstep-loop",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/46fc2550-87f4-45df-ba72-f9d3fa19a701/2cf487379afad4efd1d6a4500c86ecc47c817ec5f56b821c8034d4abacd09850.png",
     "imageFile": "rug/01-doorstep-loop.png",
-    "modelFile": "rug/01-doorstep-loop.build.js"
+    "modelFile": "rug/01-doorstep-loop.build.js",
+    "listing": {
+      "option": "Dimensions",
+      "value": "60 × 90 cm",
+      "variants": [
+        "60 × 90 cm",
+        "90 × 150 cm"
+      ],
+      "target": {
+        "footprint": [
+          0.6,
+          0.9
+        ]
+      }
+    }
   },
   {
     "kind": "rug",
@@ -1258,7 +1723,22 @@
     "handle": "woven-grid",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/94ebe62d-14c3-4784-a50f-87c1c56c47ed/d61cc26314dba2dd0ada7b1cdfe8acda96cd4a0c221445dc61b1c5776dd11608.png",
     "imageFile": "rug/02-woven-grid.png",
-    "modelFile": "rug/02-woven-grid.build.js"
+    "modelFile": "rug/02-woven-grid.build.js",
+    "listing": {
+      "option": "Size",
+      "value": "120 × 180 cm",
+      "variants": [
+        "120 × 180 cm",
+        "160 × 230 cm",
+        "200 × 290 cm"
+      ],
+      "target": {
+        "footprint": [
+          1.2,
+          1.8
+        ]
+      }
+    }
   },
   {
     "kind": "rug",
@@ -1271,7 +1751,22 @@
     "handle": "winding-path",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/b8207485-16a8-4ecb-bad3-4d7cf9a43f5a/d61ad34872e910fd9fe774a1f5be0615dc3d0ebd70f6f670c487283fc158734f.png",
     "imageFile": "rug/03-winding-path.png",
-    "modelFile": "rug/03-winding-path.build.js"
+    "modelFile": "rug/03-winding-path.build.js",
+    "listing": {
+      "option": "Size",
+      "value": "120 × 180 cm",
+      "variants": [
+        "120 × 180 cm",
+        "160 × 230 cm",
+        "200 × 300 cm"
+      ],
+      "target": {
+        "footprint": [
+          1.2,
+          1.8
+        ]
+      }
+    }
   },
   {
     "kind": "rug",
@@ -1284,7 +1779,21 @@
     "handle": "stepped-field",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/396e8447-e79f-48d3-be0c-be0a70592e12/b487aa3eee85a28237ad5ad587af4784b486613da5650856e29af3bc27f10d37.png",
     "imageFile": "rug/04-stepped-field.png",
-    "modelFile": "rug/04-stepped-field.build.js"
+    "modelFile": "rug/04-stepped-field.build.js",
+    "listing": {
+      "option": "Size",
+      "value": "80 × 150 cm",
+      "variants": [
+        "80 × 150 cm",
+        "160 × 230 cm"
+      ],
+      "target": {
+        "footprint": [
+          0.8,
+          1.5
+        ]
+      }
+    }
   },
   {
     "kind": "rug",
@@ -1297,6 +1806,21 @@
     "handle": "moss-island",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/731a0f4f-e04b-471f-85d4-c0e01f8b2717/00156a0f5f3dc912d18824884349a5cad0a00fea55f15f3e3c79f4571345b9b0.png",
     "imageFile": "rug/05-moss-island.png",
-    "modelFile": "rug/05-moss-island.build.js"
+    "modelFile": "rug/05-moss-island.build.js",
+    "listing": {
+      "option": "Size",
+      "value": "60 × 90 cm",
+      "variants": [
+        "60 × 90 cm",
+        "90 × 140 cm",
+        "120 × 180 cm"
+      ],
+      "target": {
+        "footprint": [
+          0.6,
+          0.9
+        ]
+      }
+    }
   }
 ]

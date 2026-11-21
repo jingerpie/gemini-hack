@@ -2,7 +2,7 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const W = 0.90;
+  const W = 0.80;
   const H = 0.80;
   const D = 0.32;
   const T = 0.018; // 18mm plywood thickness

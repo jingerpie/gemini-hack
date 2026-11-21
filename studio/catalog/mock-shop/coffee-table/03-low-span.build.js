@@ -2,7 +2,7 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const W = 1.12;          // Overall width
+  const W = 1.20;          // Overall width
   const D = 1.00;          // Overall depth
   const H = 0.34;          // Overall height
   const TOP_T = 0.055;     // Tabletop thickness

@@ -1,7 +1,7 @@
 function build(THREE) {
   const group = new THREE.Group();
 
-  const W = 2.10;
+  const W = 2.40;
   const H = 0.50;
   const D = 0.45;
   const PLINTH_H = 0.06;

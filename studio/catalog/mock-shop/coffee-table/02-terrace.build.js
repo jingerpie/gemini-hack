@@ -1,11 +1,11 @@
 function build(THREE) {
   const group = new THREE.Group();
 
-  // Real-world dimensions in meters
-  const W = 1.20;
-  const D = 0.65;
+  // Real-world dimensions in meters (overall width = 1.00 m including 3mm bevel)
+  const W = 0.994;
+  const D = 0.56;
   const H = 0.42;
-  const CORNER_R = 0.14;
+  const CORNER_R = 0.12;
 
   const TOP_T = 0.022;
   const RIM_H = 0.014;
@@ -14,8 +14,8 @@ function build(THREE) {
   const APRON_T = 0.018;
 
   const LEG_R = 0.022;
-  const LEG_X = W / 2 - 0.11;
-  const LEG_Z = D / 2 - 0.085;
+  const LEG_X = W / 2 - 0.095;
+  const LEG_Z = D / 2 - 0.075;
   const LEG_H = H - TOP_T;
 
   const SHELF_Y = 0.12;
@@ -127,7 +127,7 @@ function build(THREE) {
   // 6. Right-side cubby divider & back panel
   const cubbyH = H - TOP_T - APRON_H - (SHELF_Y + SHELF_T / 2);
   const cubbyY = SHELF_Y + SHELF_T / 2 + cubbyH / 2;
-  const dividerX = LEG_X - 0.16;
+  const dividerX = LEG_X - 0.14;
 
   const dividerGeo = new THREE.BoxGeometry(0.018, cubbyH, SHELF_D);
   addMesh(dividerGeo, oakMat, 'cubby_divider_panel', dividerX, cubbyY, 0);

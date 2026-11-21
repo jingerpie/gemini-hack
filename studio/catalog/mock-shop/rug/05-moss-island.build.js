@@ -1,12 +1,14 @@
 function build(THREE) {
   const group = new THREE.Group();
 
-  // Real-world dimensions (meters)
-  const W = 1.65;
-  const D = 2.45;
-  const BASE_H = 0.016;
-  const TERRACE_H = 0.010;
-  const STONE_H = 0.012;
+  // Real-world dimensions (meters) - 60 x 90 cm footprint
+  const BEVEL = 0.002;
+  const W = 0.60 - BEVEL * 2;
+  const D = 0.90 - BEVEL * 2;
+  const BASE_H = 0.012;
+  const TERRACE_H = 0.008;
+  const STONE_H = 0.009;
+  const SCALE = 0.60 / 1.65;
 
   const RX = W / 2;
   const RZ = D / 2;
@@ -86,14 +88,14 @@ function build(THREE) {
   const baseGeo = new THREE.ExtrudeGeometry(baseShape, {
     depth: BASE_H,
     bevelEnabled: true,
-    bevelThickness: 0.004,
-    bevelSize: 0.004,
+    bevelThickness: BEVEL,
+    bevelSize: BEVEL,
     bevelSegments: 2
   });
   baseGeo.rotateX(-Math.PI / 2);
   const baseMesh = new THREE.Mesh(baseGeo, matBase);
   baseMesh.name = 'rug_base';
-  baseMesh.position.y = 0.004;
+  baseMesh.position.y = BEVEL;
   baseMesh.castShadow = true;
   baseMesh.receiveShadow = true;
   group.add(baseMesh);
@@ -110,8 +112,8 @@ function build(THREE) {
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth: height,
       bevelEnabled: true,
-      bevelThickness: 0.003,
-      bevelSize: 0.003,
+      bevelThickness: BEVEL,
+      bevelSize: BEVEL,
       bevelSegments: 2
     });
     geo.rotateX(-Math.PI / 2);
@@ -123,7 +125,7 @@ function build(THREE) {
     group.add(mesh);
   }
 
-  const terraceY = BASE_H + 0.004;
+  const terraceY = BASE_H + BEVEL;
 
   // 2. Top-left & top-center terrace
   addTerrace('terrace_top', [
@@ -165,11 +167,13 @@ function build(THREE) {
 
   // Helper to add a tufted stone/pebble cluster
   function addStone(name, normX, normZ, rx, rz, h, rotY) {
-    const geo = new THREE.CylinderGeometry(rx, rx * 1.08, h, 10);
-    geo.scale(1, 1, rz / rx);
+    const sRx = rx * SCALE;
+    const sRz = rz * SCALE;
+    const geo = new THREE.CylinderGeometry(sRx, sRx * 1.08, h, 10);
+    geo.scale(1, 1, sRz / sRx);
     const mesh = new THREE.Mesh(geo, matStone);
     mesh.name = name;
-    mesh.position.set(normX * RX, terraceY + TERRACE_H + h / 2 - 0.002, normZ * RZ);
+    mesh.position.set(normX * RX, terraceY + TERRACE_H + h / 2 - 0.001, normZ * RZ);
     mesh.rotation.y = rotY;
     mesh.castShadow = true;
     mesh.receiveShadow = true;

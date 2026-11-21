@@ -2,15 +2,15 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const DIAMETER = 0.60;
+  const DIAMETER = 0.50;
   const RADIUS = DIAMETER / 2;
-  const HEIGHT = 0.32;
+  const HEIGHT = 0.30;
   const PANEL_COUNT = 16;
-  const MEDALLION_R = 0.095;
-  const SHOULDER_R = 0.235;
-  const SHOULDER_Y = 0.255;
-  const BASE_R = 0.22;
-  const PIPING_R = 0.0045;
+  const MEDALLION_R = RADIUS * 0.32;
+  const SHOULDER_R = RADIUS * 0.785;
+  const SHOULDER_Y = HEIGHT * 0.797;
+  const BASE_R = RADIUS * 0.733;
+  const PIPING_R = 0.004;
 
   // Materials
   const leatherMat = new THREE.MeshPhysicalMaterial({
@@ -29,17 +29,17 @@ function build(THREE) {
 
   // 1. Main pouf body via LatheGeometry
   const profilePoints = [
-    new THREE.Vector2(0.0, 0.002),
+    new THREE.Vector2(0.0, 0.0),
     new THREE.Vector2(BASE_R * 0.85, 0.003),
-    new THREE.Vector2(BASE_R, 0.012),
-    new THREE.Vector2(RADIUS * 0.88, 0.045),
-    new THREE.Vector2(RADIUS * 0.98, 0.10),
-    new THREE.Vector2(RADIUS, 0.155),
-    new THREE.Vector2(RADIUS * 0.96, 0.21),
-    new THREE.Vector2(SHOULDER_R + 0.03, 0.245),
+    new THREE.Vector2(BASE_R, 0.011),
+    new THREE.Vector2(RADIUS * 0.88, HEIGHT * 0.14),
+    new THREE.Vector2(RADIUS * 0.98, HEIGHT * 0.31),
+    new THREE.Vector2(RADIUS, HEIGHT * 0.485),
+    new THREE.Vector2(RADIUS * 0.96, HEIGHT * 0.656),
+    new THREE.Vector2(SHOULDER_R + 0.025, HEIGHT * 0.765),
     new THREE.Vector2(SHOULDER_R, SHOULDER_Y),
-    new THREE.Vector2(0.16, 0.295),
-    new THREE.Vector2(MEDALLION_R, 0.314),
+    new THREE.Vector2(RADIUS * 0.533, HEIGHT * 0.922),
+    new THREE.Vector2(MEDALLION_R, HEIGHT * 0.981),
     new THREE.Vector2(0.0, HEIGHT),
   ];
   const bodyGeo = new THREE.LatheGeometry(profilePoints, 32);
@@ -51,7 +51,6 @@ function build(THREE) {
 
   // Helper to evaluate surface radius/height along the profile for seam placement
   function getProfilePoint(t) {
-    // t in [0, 1] from bottom edge to top medallion edge
     const idx = t * (profilePoints.length - 2) + 1;
     const i0 = Math.min(Math.floor(idx), profilePoints.length - 2);
     const i1 = i0 + 1;
@@ -65,7 +64,7 @@ function build(THREE) {
   const bottomPipingGeo = new THREE.TorusGeometry(BASE_R, PIPING_R, 8, 32);
   bottomPipingGeo.rotateX(Math.PI / 2);
   const bottomPiping = new THREE.Mesh(bottomPipingGeo, seamMat);
-  bottomPiping.position.y = 0.012;
+  bottomPiping.position.y = 0.011;
   bottomPiping.name = 'bottom_piping';
   bottomPiping.castShadow = true;
   bottomPiping.receiveShadow = true;
@@ -91,15 +90,15 @@ function build(THREE) {
   group.add(medallionPiping);
 
   // 5. Central embossed star/floral motif on medallion (8 petals)
-  const petalGeo = new THREE.CapsuleGeometry(0.0035, 0.042, 4, 8);
+  const petalGeo = new THREE.CapsuleGeometry(0.003, 0.035, 4, 8);
   petalGeo.rotateZ(Math.PI / 2);
   for (let i = 0; i < 8; i++) {
     const angle = (i / 8) * Math.PI * 2;
     const petal = new THREE.Mesh(petalGeo, seamMat);
     petal.position.set(
-      Math.cos(angle) * 0.028,
+      Math.cos(angle) * 0.023,
       HEIGHT - 0.0005,
-      Math.sin(angle) * 0.028
+      Math.sin(angle) * 0.023
     );
     petal.rotation.y = -angle;
     petal.name = `medallion_petal_${i + 1}`;
@@ -119,7 +118,7 @@ function build(THREE) {
     for (let s = 0; s <= steps; s++) {
       const t = (s / steps) * 0.92 + 0.05;
       const p = getProfilePoint(t);
-      const r = p.r + 0.0015;
+      const r = p.r + 0.0012;
       seamPts.push(new THREE.Vector3(cosA * r, p.y, sinA * r));
     }
 
@@ -138,8 +137,8 @@ function build(THREE) {
   for (let i = 0; i < PANEL_COUNT * 2; i++) {
     const angle = i * halfStep;
     const isPeak = i % 2 === 0;
-    const r = isPeak ? SHOULDER_R + 0.002 : SHOULDER_R + 0.026;
-    const y = isPeak ? SHOULDER_Y + 0.008 : SHOULDER_Y - 0.014;
+    const r = isPeak ? SHOULDER_R + 0.002 : SHOULDER_R + 0.022;
+    const y = isPeak ? SHOULDER_Y + 0.007 : SHOULDER_Y - 0.013;
     zigzagPts.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r));
   }
   const zigzagCurve = new THREE.CatmullRomCurve3(zigzagPts, true);

@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { SERVER_DIR, generateContent, textOf, scrub } from './lib.mjs';
 import { cleanCode, validateCode, DIRECT_MODEL } from './asset.mjs';
+import { describeTarget } from './catalog-dims.mjs';
 
 const CATALOG_DIR = path.join(SERVER_DIR, '..', 'catalog', 'mock-shop');
 const CATALOG = path.join(CATALOG_DIR, 'catalog.json');
@@ -27,7 +28,8 @@ function prompt(e) {
   return `Build a three.js model of the product in the attached photo.
 Product: ${e.name} (${e.productType}, category: ${e.kind}).
 Match the photo closely: silhouette, proportions, number and shape of legs/arms/cushions/drawers, materials and colors.
-Pick a realistic real-world size for this kind of product and state it as named constants at the top of the function.
+${e.listing ? `Product listing size (${e.listing.option}: ${e.listing.value}). The model MUST match exactly: ${describeTarget(e.listing.target)}. Pick realistic values for any dimension the listing does not give.` : 'Pick a realistic real-world size for this kind of product.'}
+State the dimensions as named constants at the top of the function.
 Respond with only the code in a single \`\`\`javascript block, no explanation.`;
 }
 

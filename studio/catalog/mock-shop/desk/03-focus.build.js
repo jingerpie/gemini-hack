@@ -1,7 +1,7 @@
 function build(THREE) {
   const group = new THREE.Group();
 
-  const W = 1.50;
+  const W = 1.40;
   const D = 0.70;
   const H = 0.75;
   const TOP_T = 0.03;

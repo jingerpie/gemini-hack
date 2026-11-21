@@ -3,13 +3,13 @@ function build(THREE) {
 
   // Dimensions (meters)
   const TOTAL_H = 0.52;
-  const TOP_R = 0.25;
+  const TOP_R = 0.175;
   const TOP_H = 0.032;
-  const COL_R = 0.11;
-  const BASE_R = 0.18;
+  const COL_R = 0.077;
+  const BASE_R = 0.126;
   const BASE_H = 0.008;
   const GLIDE_H = 0.002;
-  const GLIDE_R = 0.012;
+  const GLIDE_R = 0.010;
 
   const COL_H = TOTAL_H - TOP_H - BASE_H - GLIDE_H;
   const BASE_Y = GLIDE_H;
@@ -84,7 +84,7 @@ function build(THREE) {
   addMesh(topGeo, woodMat, 'tabletop', 0, TOP_Y + TOP_H / 2, 0);
 
   // 4 small dark metal mounting brackets & bolts under the tabletop
-  const bracketGeo = new THREE.BoxGeometry(0.016, 0.008, 0.018);
+  const bracketGeo = new THREE.BoxGeometry(0.014, 0.008, 0.016);
   const boltGeo = new THREE.CylinderGeometry(0.003, 0.003, 0.004, 12);
   for (let i = 0; i < 4; i++) {
     const angle = (i * Math.PI) / 2 + Math.PI / 4;

@@ -8,7 +8,10 @@ function build(THREE) {
   const SEAT_H = 0.45;
   const SEAT_W = 0.46;
   const SEAT_D = 0.44;
+  const BACK_H = H - SEAT_H;
   const SHELL_THICK = 0.016;
+  const SHELL_R_OUT = 0.235;
+  const SHELL_R_IN = SHELL_R_OUT - SHELL_THICK;
   const LEG_TOP_R = 0.022;
   const LEG_BOT_R = 0.014;
 
@@ -129,91 +132,45 @@ function build(THREE) {
   cushionGeo.rotateX(Math.PI / 2);
   addMesh(cushionGeo, fabricMat, 'seat_cushion', [0, SEAT_H + 0.028, 0.01]);
 
-  // 4. Wrap-around wooden backrest shell
-  // Lower/side wrap-around cylinder arc
-  const shellRadius = 0.235;
-  const shellHeight = 0.23;
-  const shellGeo = new THREE.CylinderGeometry(
-    shellRadius,
-    shellRadius,
-    shellHeight,
-    32,
-    1,
-    true,
-    Math.PI * 0.42,
-    Math.PI * 1.16
-  );
-  // Thicken the shell by adding a slightly smaller inner cylinder or using a torus/tube rim
-  addMesh(shellGeo, woodMat, 'backrest_wood_shell_lower', [0, SEAT_H + shellHeight / 2 - 0.005, -0.01]);
+  // 4. Continuous U-shaped bent-plywood backrest shell
+  const shellStart = -Math.PI * 0.08;
+  const shellEnd = Math.PI * 1.08;
+  const shellShape = new THREE.Shape();
+  shellShape.absarc(0, 0, SHELL_R_OUT, shellStart, shellEnd, false);
+  shellShape.absarc(0, 0, SHELL_R_IN, shellEnd, shellStart, true);
+  shellShape.closePath();
 
-  const shellInnerGeo = new THREE.CylinderGeometry(
-    shellRadius - SHELL_THICK,
-    shellRadius - SHELL_THICK,
-    shellHeight,
-    32,
-    1,
-    true,
-    Math.PI * 0.42,
-    Math.PI * 1.16
-  );
-  // Flip normals for inner face by scaling X by -1? Better: use DoubleSide or a second mesh
-  woodMat.side = THREE.DoubleSide;
-  addMesh(shellInnerGeo, woodMat, 'backrest_wood_shell_inner', [0, SEAT_H + shellHeight / 2 - 0.005, -0.01]);
-
-  // Arched upper wooden backrest
-  const archShape = new THREE.Shape();
-  const aw = 0.21;
-  const ah = H - SEAT_H;
-  archShape.moveTo(-aw, 0.08);
-  archShape.lineTo(-aw, ah - 0.14);
-  archShape.quadraticCurveTo(-aw, ah, 0, ah);
-  archShape.quadraticCurveTo(aw, ah, aw, ah - 0.14);
-  archShape.lineTo(aw, 0.08);
-  archShape.lineTo(-aw, 0.08);
-
-  const archGeo = new THREE.ExtrudeGeometry(archShape, {
-    depth: SHELL_THICK,
+  const shellGeo = new THREE.ExtrudeGeometry(shellShape, {
+    depth: BACK_H,
     bevelEnabled: true,
-    bevelThickness: 0.004,
-    bevelSize: 0.004,
-    bevelSegments: 3,
-    curveSegments: 20,
+    bevelThickness: 0.007,
+    bevelSize: 0.005,
+    bevelSegments: 4,
+    curveSegments: 32,
   });
-  addMesh(archGeo, woodMat, 'backrest_wood_arch', [0, SEAT_H - 0.005, -0.235]);
+  shellGeo.rotateX(-Math.PI / 2);
+  addMesh(shellGeo, woodMat, 'backrest_wood_shell', [0, SEAT_H - 0.002, -0.01]);
 
-  // Smooth wooden rim tube framing the arched backrest
-  const rimCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.228, SEAT_H + 0.02,  0.04),
-    new THREE.Vector3(-0.232, SEAT_H + 0.18, -0.08),
-    new THREE.Vector3(-0.185, H - 0.04,      -0.20),
-    new THREE.Vector3( 0.0,   H - 0.008,     -0.232),
-    new THREE.Vector3( 0.185, H - 0.04,      -0.20),
-    new THREE.Vector3( 0.232, SEAT_H + 0.18, -0.08),
-    new THREE.Vector3( 0.228, SEAT_H + 0.02,  0.04),
-  ]);
-  const rimGeo = new THREE.TubeGeometry(rimCurve, 32, 0.011, 12, false);
-  addMesh(rimGeo, woodMat, 'backrest_wood_rim', [0, 0, 0]);
+  // 5. Curved upholstered backrest pad following the inside of the shell
+  const padStart = -Math.PI * 0.02;
+  const padEnd = Math.PI * 1.02;
+  const padROut = SHELL_R_IN - 0.001;
+  const padRIn = padROut - 0.036;
+  const padShape = new THREE.Shape();
+  padShape.absarc(0, 0, padROut, padStart, padEnd, false);
+  padShape.absarc(0, 0, padRIn, padEnd, padStart, true);
+  padShape.closePath();
 
-  // 5. Upholstered backrest cushion (sits inside the wooden shell)
-  const backCushionShape = new THREE.Shape();
-  const bw = 0.165;
-  const bh = ah - 0.035;
-  backCushionShape.moveTo(-bw, 0.02);
-  backCushionShape.lineTo(-bw - 0.01, bh * 0.45);
-  backCushionShape.quadraticCurveTo(-bw, bh, 0, bh);
-  backCushionShape.quadraticCurveTo(bw, bh, bw + 0.01, bh * 0.45);
-  backCushionShape.lineTo(bw, 0.02);
-  backCushionShape.quadraticCurveTo(0, 0.005, -bw, 0.02);
-
-  const backCushionGeo = new THREE.ExtrudeGeometry(backCushionShape, {
-    depth: 0.032,
+  const padGeo = new THREE.ExtrudeGeometry(padShape, {
+    depth: BACK_H - 0.045,
     bevelEnabled: true,
-    bevelThickness: 0.022,
-    bevelSize: 0.018,
+    bevelThickness: 0.014,
+    bevelSize: 0.01,
     bevelSegments: 6,
-    curveSegments: 20,
+    curveSegments: 32,
   });
-  addMesh(backCushionGeo, fabricMat, 'backrest_cushion', [0, SEAT_H + 0.01, -0.205], [-0.06, 0, 0]);
+  padGeo.rotateX(-Math.PI / 2);
+  addMesh(padGeo, fabricMat, 'backrest_cushion', [0, SEAT_H + 0.022, -0.01]);
 
   return group;
 }
