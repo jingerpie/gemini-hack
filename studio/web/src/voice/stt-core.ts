@@ -22,7 +22,7 @@ export const TUNING = {
   VAD_FLOOR_WINDOW_MS: 1500, // noise floor = minimum smoothed RMS over this sliding window (min-statistics)
   VAD_FLOOR_RISE: 0.05, // per-frame smoothing when the floor rises (~0.4 s time constant)
   VAD_FLOOR_FALL: 0.3, // per-frame smoothing when the floor falls
-  END_SILENCE_MS: 450, // silence after speech that ends an utterance
+  END_SILENCE_MS: 500, // silence after speech that ends an utterance
   MAX_AUDIO_LAG_MS: 1500, // VAD runs on an audio-sample clock that may trail the wall clock by at most this much
   // --- commit timing ---
   SETTLE_CAP_MS: 900, // after end-of-speech, wait at most this long for the transcript before committing anyway
@@ -337,7 +337,8 @@ export class Segmenter {
 
   /** While settling: if the newest interim already ends a sentence and was produced after the speech ended, go. */
   private tryPunctEarly(now: number) {
-    if (!this.settling || this.vad.inSpeech || !this.turnToks.length) return;
+    // (Works even if the speaker already resumed: a trailing . ? ! means no new words were appended yet.)
+    if (!this.settling || !this.turnToks.length) return;
     const last = this.turnToks[this.turnToks.length - 1].raw;
     if (/[.?!]["')\]]*$/.test(last) && this.lastInterimAt >= this.speechEndAt + TUNING.PUNCT_EARLY_LAG_MS) this.decide("punct", now);
   }
