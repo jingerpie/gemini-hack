@@ -262,6 +262,8 @@ export class TaskManager {
 	private unsubEngine: (() => void) | null = null;
 	private emitQueued = false;
 	private shopEnabled = URL_PARAMS.get("shop") !== "0";
+	// The slow "Shop the look" web search is off unless ?source=1 (the cart's /api/shop/match replaces it).
+	private sourceEnabled = URL_PARAMS.get("source") === "1";
 	private shop: ShopGroup[] = [];
 	private shopSeen = new Set<string>(); // objectIds whose group has seen its object in the scene
 	private initialScene: Scene | null = null;
@@ -326,6 +328,11 @@ export class TaskManager {
 			if (restore) this.restoreScene(engine, restore);
 		}
 		this.emit();
+	}
+
+	/** The server client (set late in mock modes). */
+	getApi(): Api | null {
+		return this.api;
 	}
 
 	private restoreScene(engine: Engine, scene: Scene) {
@@ -965,6 +972,7 @@ export class TaskManager {
 			!job.catalogId &&
 			!hasCatalogProduct(job.objectId, ops, this.engine) &&
 			this.shopEnabled &&
+			this.sourceEnabled &&
 			this.api?.source &&
 			ops.some((op) => op.op === "add" && op.id === job.objectId) &&
 			!this.shop.some((g) => g.objectId === job.objectId)

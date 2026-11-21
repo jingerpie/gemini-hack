@@ -11,6 +11,8 @@ import type {
 	PatchResponse,
 	RenderRequest,
 	RenderResponse,
+	ShopMatchRequest,
+	ShopMatchResponse,
 	SourceEvent,
 	SourceRequest,
 	VerifyRequest,
@@ -40,6 +42,11 @@ export interface Api {
 		req: CheckoutRequest,
 		signal?: AbortSignal,
 	): Promise<CheckoutResponse>;
+	/** One buyable Shop listing per room object. Optional (mocks lack it): the cart hides itself. */
+	shopMatch?(
+		req: ShopMatchRequest,
+		signal?: AbortSignal,
+	): Promise<ShopMatchResponse>;
 }
 
 /** The server does not have this route (404/405): the feature hides itself quietly. */
@@ -261,6 +268,8 @@ export const httpApi: Api = {
 	verify: (req, signal) => postJson<VerifyResponse>("/api/verify", req, signal),
 	checkout: (req, signal) =>
 		postJson<CheckoutResponse>("/api/checkout", req, signal),
+	shopMatch: (req, signal) =>
+		postJson<ShopMatchResponse>("/api/shop/match", req, signal),
 	async render(req, signal) {
 		const t = withTimeout(signal, RENDER_TIMEOUT_MS);
 		try {
