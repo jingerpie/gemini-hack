@@ -1,7 +1,7 @@
 // Left navigation rail: a floating white pill with one icon per page, shared by every route.
 import { cn } from "@gemini-hack/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { House, LayoutGrid } from "lucide-react";
+import { House, LayoutGrid, ShoppingBag } from "lucide-react";
 import type { ReactNode } from "react";
 import { Hint } from "./parts";
 
@@ -49,6 +49,16 @@ export function Rail({ extra }: { extra?: ReactNode }) {
 						activeProps={{ className: active, "aria-current": "page" }}
 					>
 						<LayoutGrid />
+					</Link>
+				</Hint>
+				<Hint label="Checkout" side="right">
+					<Link
+						to="/checkout"
+						aria-label="Checkout"
+						className={item}
+						activeProps={{ className: active, "aria-current": "page" }}
+					>
+						<ShoppingBag className="fill-none!" />
 					</Link>
 				</Hint>
 			</div>
