@@ -1,19 +1,8 @@
 import { Badge } from "@gemini-hack/ui/components/badge";
 import { Button } from "@gemini-hack/ui/components/button";
-import {
-	Card,
-	CardAction,
-	CardHeader,
-	CardTitle,
-} from "@gemini-hack/ui/components/card";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "@gemini-hack/ui/components/collapsible";
 import { Spinner } from "@gemini-hack/ui/components/spinner";
 import { cn } from "@gemini-hack/ui/lib/utils";
-import { ChevronRight, House } from "lucide-react";
+import { House } from "lucide-react";
 import {
 	type ReactNode,
 	useEffect,
@@ -29,42 +18,29 @@ import {
 	type TaskManager,
 } from "../lib/taskManager";
 import type { Product } from "../types";
-import { Dot } from "./parts";
+import { Dot, surface } from "./parts";
 import { fmtMs } from "./Timeline";
 
-const panel = "min-h-0 gap-0 rounded-xl py-0 ring-border";
 const scroller =
-	"min-h-0 flex-1 overflow-y-auto [scrollbar-color:rgb(255_255_255/0.08)_transparent] [scrollbar-width:thin]";
-const empty = "text-[12.5px] text-faint";
+	"min-h-0 flex-1 overflow-y-auto [scrollbar-color:rgb(0_0_0/0.12)_transparent] [scrollbar-width:thin]";
+const empty = "text-sm text-muted-foreground";
 
-function PanelHead({
-	title,
-	meta,
-	className,
-}: {
-	title: ReactNode;
-	meta?: ReactNode;
-	className?: string;
-}) {
+function PanelHead({ title, meta }: { title: ReactNode; meta?: ReactNode }) {
 	return (
-		<CardHeader
-			className={cn(
-				"border-border flex h-9 flex-none items-center justify-between border-b px-3.5 py-0 [.border-b]:pb-0",
-				className,
-			)}
-		>
-			<CardTitle className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium tracking-[0.09em] uppercase">
+		<div className="flex flex-none items-center gap-2 px-5 pt-4.5 pb-3">
+			<h2 className="flex items-center gap-2 text-xl leading-[22px] font-semibold tracking-[-1px]">
 				{title}
-			</CardTitle>
+			</h2>
 			{meta ? (
-				<CardAction className="text-faint flex items-center gap-1.5 self-center font-mono text-[10.5px]">
+				<span className="text-muted-foreground flex items-center gap-1.5 text-sm font-semibold">
 					{meta}
-				</CardAction>
+				</span>
 			) : null}
-		</CardHeader>
+		</div>
 	);
 }
 
+/** Right column of the studio: products to buy for the room, then the work in flight. */
 export function Sidebar({
 	state,
 	manager,
@@ -72,60 +48,20 @@ export function Sidebar({
 	state: StudioState;
 	manager: TaskManager;
 }) {
-	// short screens: the ops log starts collapsed so tasks and products get the room
-	const [opsOpen, setOpsOpen] = useState(
-		() => typeof window === "undefined" || window.innerHeight >= 860,
-	);
 	const productCount = state.shop.reduce((n, g) => n + g.products.length, 0);
 	return (
-		<aside className="flex min-h-0 flex-col gap-2.5 p-3">
-			<Card className={cn(panel, "min-h-24 flex-[0.9_1_0]")}>
-				<PanelHead
-					title="Transcript"
-					meta={state.transcript.filter((l) => l.kind === "user").length || ""}
-				/>
-				<Transcript state={state} />
-			</Card>
-
-			<Card className={cn(panel, "min-h-42 flex-[1.5_1_0]")}>
-				<PanelHead
-					title="Tasks"
-					meta={
-						state.counters.running ? (
-							<>
-								<Dot agent="asset" pulse />
-								{state.counters.running} running
-							</>
-						) : (
-							state.tasks.length || ""
-						)
-					}
-				/>
-				<TaskList tasks={state.tasks} manager={manager} />
-			</Card>
-
+		<aside className="flex min-h-0 w-full min-w-0 flex-col gap-3">
 			{state.shop.length > 0 && (
-				<Card
+				<section
+					aria-label="Shop the look"
 					className={cn(
-						panel,
-						productCount ? "min-h-37 flex-[1_1_0]" : "flex-none",
+						surface,
+						"flex min-h-0 flex-col",
+						productCount ? "flex-[1.2_1_0]" : "flex-none",
 					)}
 				>
-					<PanelHead
-						title={
-							<>
-								<Dot agent="source" className="size-[7px]" /> Shop the look
-							</>
-						}
-						meta={productCount || ""}
-					/>
-					<div
-						className={cn(
-							scroller,
-							"flex flex-col gap-3 px-2.5 pt-2 pb-2.5",
-							!productCount && "max-h-30",
-						)}
-					>
+					<PanelHead title="Shop the look" meta={productCount || ""} />
+					<div className={cn(scroller, "flex flex-col gap-4 px-4 pb-4")}>
 						{state.shop
 							.slice()
 							.reverse()
@@ -133,53 +69,33 @@ export function Sidebar({
 								<ShopGroupView key={g.objectId} g={g} manager={manager} />
 							))}
 					</div>
-				</Card>
+				</section>
 			)}
 
-			<Collapsible
-				open={opsOpen}
-				onOpenChange={setOpsOpen}
-				render={
-					<Card
-						className={cn(
-							panel,
-							"min-h-18",
-							opsOpen
-								? "flex-[0.8_1_0] [@media(max-height:860px)]:flex-[0.5_1_0]"
-								: "flex-none",
-						)}
-					/>
-				}
+			<section
+				aria-label="Tasks"
+				className={cn(surface, "flex min-h-40 flex-[1_1_0] flex-col")}
 			>
 				<PanelHead
-					title={
-						<CollapsibleTrigger className="hover:text-text-2 flex cursor-pointer items-center gap-1.5 uppercase select-none">
-							<ChevronRight
-								className={cn(
-									"size-3.5 transition-transform",
-									opsOpen && "rotate-90",
-								)}
-							/>
-							Scene ops
-						</CollapsibleTrigger>
+					title="Tasks"
+					meta={
+						state.counters.running ? (
+							<Badge className="bg-primary/10 text-primary h-6 gap-1.5 rounded-full px-2.5 text-xs font-semibold">
+								<Dot agent="asset" pulse />
+								{state.counters.running} running
+							</Badge>
+						) : (
+							state.tasks.length || ""
+						)
 					}
-					meta={state.opsLog.length || ""}
 				/>
-				<CollapsibleContent className="flex min-h-0 flex-1 flex-col">
-					<OpsLog state={state} />
-				</CollapsibleContent>
-				<div className="border-border text-muted-foreground flex flex-none gap-3.5 border-t px-3.5 py-2 text-[11px]">
-					<Counter n={state.counters.objects} label="objects" />
-					<Counter n={state.counters.decals} label="decals" />
-					<Counter n={state.counters.done} label="done" />
-					<Counter n={state.counters.failed} label="failed" bad />
-				</div>
-			</Collapsible>
+				<TaskList tasks={state.tasks} manager={manager} />
+			</section>
 		</aside>
 	);
 }
 
-function Counter({
+export function Counter({
 	n,
 	label,
 	bad,
@@ -189,15 +105,8 @@ function Counter({
 	bad?: boolean;
 }) {
 	return (
-		<span>
-			<b
-				className={cn(
-					"text-text-2 mr-1 font-mono font-medium",
-					bad && n > 0 && "text-bad",
-				)}
-			>
-				{n}
-			</b>
+		<span className={cn(bad && n > 0 && "text-bad font-semibold")}>
+			<b className="text-foreground mr-1 font-semibold">{n}</b>
 			{label}
 		</span>
 	);
@@ -220,62 +129,6 @@ function useStickToBottom(dep: unknown) {
 }
 
 const rise = "animate-in fade-in slide-in-from-bottom-1 duration-200";
-
-function Transcript({ state }: { state: StudioState }) {
-	const { ref, onScroll } = useStickToBottom(
-		`${state.transcript.length}|${state.interim}`,
-	);
-	const statusOf = (taskId?: string) =>
-		state.tasks.find((t) => t.id === taskId);
-	const isEmpty = state.transcript.length === 0 && !state.interim;
-	return (
-		<div
-			className={cn(scroller, "flex flex-col gap-0.5 px-3.5 pt-3 pb-4")}
-			ref={ref}
-			onScroll={onScroll}
-		>
-			{isEmpty && <p className={empty}>No speech yet.</p>}
-			{state.transcript.map((l) =>
-				l.kind === "user" ? (
-					<p
-						key={l.id}
-						className={cn(
-							rise,
-							"text-foreground pt-1.5 text-[14.5px] leading-normal transition-colors",
-							lineClass(statusOf(l.taskId)),
-						)}
-					>
-						{l.text}
-					</p>
-				) : (
-					<p
-						key={l.id}
-						className={cn(
-							rise,
-							"border-patch/35 text-muted-foreground my-0.5 ml-px border-l-2 pl-3 text-[12.5px]",
-						)}
-					>
-						{l.text}
-					</p>
-				),
-			)}
-			{state.interim && (
-				<p className="pt-1.5 text-[14.5px] text-[#9aa6ba]">
-					{state.interim}
-					<span className="animate-blink bg-cursor ml-0.5 inline-block h-[1.05em] w-[7px] rounded-[1px] align-[-0.15em]" />
-				</p>
-			)}
-		</div>
-	);
-}
-
-function lineClass(t?: Task) {
-	if (!t) return "";
-	if (t.status === "running" || t.status === "held") return "text-[#cfd6e4]";
-	if (t.status === "failed")
-		return "text-muted-foreground line-through decoration-bad/60";
-	return "";
-}
 
 function useTick(active: boolean, ms = 100) {
 	const [, set] = useState(0);
@@ -303,9 +156,9 @@ function TaskList({ tasks, manager }: { tasks: Task[]; manager: TaskManager }) {
 		.sort((a, b) => b.startAt - a.startAt)
 		.slice(0, 60);
 	return (
-		<div className={cn(scroller, "flex flex-col gap-1.5 p-2")}>
+		<div className={cn(scroller, "flex flex-col px-3 pb-3")}>
 			{!tasks.length && (
-				<p className={cn(empty, "px-1.5 py-1")}>
+				<p className={cn(empty, "px-2 py-1")}>
 					Tasks you trigger show up here.
 				</p>
 			)}
@@ -327,17 +180,8 @@ const STATUS_WORD: Record<Task["status"], string> = {
 	superseded: "superseded",
 };
 
-const EDGE: Record<string, string> = {
-	patch: "shadow-[inset_2px_0_0_var(--color-patch)]",
-	designer: "shadow-[inset_2px_0_0_var(--color-designer)]",
-	asset: "shadow-[inset_2px_0_0_var(--color-asset)]",
-	decal: "shadow-[inset_2px_0_0_var(--color-decal)]",
-	render: "shadow-[inset_2px_0_0_var(--color-decal)]",
-	source: "shadow-[inset_2px_0_0_var(--color-source)]",
-	failed: "shadow-[inset_2px_0_0_var(--color-bad)]",
-};
 const SWEEP: Record<string, string> = {
-	patch: "via-white/35",
+	patch: "via-patch",
 	asset: "via-asset",
 	decal: "via-decal",
 	render: "via-decal",
@@ -345,9 +189,9 @@ const SWEEP: Record<string, string> = {
 	designer: "via-designer",
 };
 const TAG: Partial<Record<Task["status"], string>> = {
-	failed: "bg-bad/15 text-[#e89590]",
-	held: "bg-patch/15 text-[#a8c0e2]",
-	queued: "bg-white/5 text-muted-foreground",
+	failed: "bg-bad/10 text-bad",
+	held: "bg-patch/10 text-patch",
+	queued: "bg-muted text-muted-foreground",
 };
 
 function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
@@ -365,29 +209,19 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 		!!t.targetId || (t.kind === "render" && t.status === "done");
 	const statusLine = planning ? "designer is planning the room…" : t.statusLine;
 	const hue = designer ? "designer" : t.kind;
-	const edge = designer
-		? EDGE.designer
-		: t.status === "failed"
-			? EDGE.failed
-			: live
-				? EDGE[t.kind]
-				: "";
 	return (
 		// biome-ignore lint/a11y: mouse shortcut to focus the object; the same focus is reachable from the timeline and by voice
 		<div
 			className={cn(
 				rise,
-				"border-border bg-muted relative flex-none overflow-hidden rounded-[10px] border py-2 pr-2.5 pl-3 transition-[border-color,opacity]",
-				edge,
-				live && "border-white/10",
-				designer && "from-designer/7 bg-linear-to-b to-transparent",
-				planning && "border-designer/45",
+				"border-border relative flex-none overflow-hidden border-t px-2 py-2.5 transition-[background-color,opacity] first:border-t-transparent",
+				designer && "bg-designer/5",
 				(t.status === "nochange" ||
 					t.status === "cancelled" ||
 					t.status === "superseded") &&
 					"opacity-60",
-				t.status === "queued" && "border-dashed opacity-70",
-				focusable && "hover:border-input cursor-pointer hover:bg-[#1a1c22]",
+				t.status === "queued" && "opacity-70",
+				focusable && "hover:bg-muted/70 cursor-pointer",
 			)}
 			onClick={() => manager.focus(t.id)}
 			title={
@@ -402,13 +236,13 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 		>
 			<div className="flex items-center gap-2">
 				<Dot agent={hue} pulse={t.status === "running"} />
-				<span className="text-foreground min-w-0 flex-1 truncate text-[12.5px]">
+				<span className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">
 					{title}
 				</span>
 				<span
 					className={cn(
-						"text-muted-foreground font-mono text-[10.5px] tabular-nums",
-						t.status === "running" && "text-text-2",
+						"text-muted-foreground text-xs tabular-nums",
+						t.status === "running" && "text-primary font-semibold",
 					)}
 				>
 					{t.status === "running"
@@ -421,15 +255,15 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 				</span>
 			</div>
 			{t.kind === "patch" && t.designer && t.model && (
-				<div className="mt-0.5 ml-3.5 font-mono text-[10px] tracking-wide text-[#dcaed0]">
+				<div className="text-designer mt-0.5 ml-3.5 text-xs font-semibold">
 					designer · {t.model}
 				</div>
 			)}
 			{t.kind === "patch" && t.designer && (t.brief || t.say) && (
-				<div className="mt-1 ml-3.5 flex flex-col gap-0.5 text-[11.5px] leading-snug">
+				<div className="mt-1 ml-3.5 flex flex-col gap-0.5 text-xs leading-snug">
 					{t.brief && (
 						<p className="text-text-2 line-clamp-3" title={t.brief}>
-							<b className="mr-1 text-[9.5px] font-medium tracking-[0.07em] text-[#dcaed0] uppercase">
+							<b className="text-designer mr-1 text-[9.5px] font-medium tracking-[0.07em] uppercase">
 								brief
 							</b>
 							{t.brief}
@@ -440,27 +274,27 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 					)}
 				</div>
 			)}
-			<div className="mt-1 flex min-h-5 items-center gap-2 pl-3.5">
+			<div className="mt-1 flex min-h-6 items-center gap-2 pl-3.5">
 				<span
 					className={cn(
-						"text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 truncate text-[11.5px]",
-						t.status === "failed" && "text-[#e08c86]",
-						planning && "text-[#e2b4d6]",
+						"text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 truncate text-xs",
+						t.status === "failed" && "text-bad",
+						planning && "text-designer",
 					)}
 					title={statusLine}
 				>
 					{STATUS_WORD[t.status] && (
 						<Badge
 							className={cn(
-								"h-4 rounded px-1.5 text-[9.5px] tracking-[0.07em] uppercase",
-								TAG[t.status] ?? "text-text-2 bg-white/6",
+								"h-5 rounded-full px-2 text-[10px] font-semibold",
+								TAG[t.status] ?? "bg-muted text-text-2",
 							)}
 						>
 							{STATUS_WORD[t.status]}
 						</Badge>
 					)}
 					{(t.status === "running" && t.kind !== "patch") || planning ? (
-						<Spinner className="text-text-2 size-3" />
+						<Spinner className="text-primary size-3" />
 					) : null}
 					<span className="truncate">{statusLine}</span>
 				</span>
@@ -470,7 +304,7 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 						<Button
 							variant="outline"
 							size="xs"
-							className="text-muted-foreground hover:text-foreground h-5 rounded-md bg-transparent text-[11px]"
+							className="h-6 px-2.5 text-xs"
 							onClick={(e) => {
 								e.stopPropagation();
 								manager.cancel(t.id);
@@ -482,7 +316,7 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 				</span>
 			</div>
 			{((live && t.kind !== "patch") || planning) && (
-				<div className="absolute inset-x-0 bottom-0 h-px overflow-hidden">
+				<div className="absolute inset-x-2 bottom-0 h-0.5 overflow-hidden rounded-full">
 					<div
 						className={cn(
 							"animate-sweep h-full w-2/5 bg-linear-to-r from-transparent to-transparent",
@@ -496,11 +330,11 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 }
 
 function VerifyBadge({ v }: { v: NonNullable<Task["verify"]> }) {
-	const cls = "h-4 rounded-[5px] px-1.5 font-mono text-[10px]";
+	const cls = "h-5 rounded-full px-2 text-[10px] font-semibold";
 	if (v.state === "pending")
 		return (
 			<Badge
-				className={cn(cls, "animate-breathe text-muted-foreground bg-white/5")}
+				className={cn(cls, "animate-breathe text-muted-foreground bg-muted")}
 			>
 				verifying…
 			</Badge>
@@ -508,7 +342,7 @@ function VerifyBadge({ v }: { v: NonNullable<Task["verify"]> }) {
 	if (v.state === "error")
 		return (
 			<Badge
-				className={cn(cls, "text-faint bg-white/4")}
+				className={cn(cls, "text-faint bg-muted")}
 				title="verify call failed"
 			>
 				verify n/a
@@ -522,10 +356,10 @@ function VerifyBadge({ v }: { v: NonNullable<Task["verify"]> }) {
 				: "mismatch";
 	const tone =
 		v.state === "ok"
-			? "bg-ok/13 text-[#7fd1a6]"
+			? "bg-ok/10 text-ok"
 			: v.state === "unsure"
-				? "bg-warn/13 text-[#e2b468]"
-				: "bg-bad/14 text-[#ec8d86]";
+				? "bg-warn/10 text-warn"
+				: "bg-bad/10 text-bad";
 	return (
 		<Badge
 			className={cn(cls, tone)}
@@ -537,15 +371,15 @@ function VerifyBadge({ v }: { v: NonNullable<Task["verify"]> }) {
 }
 
 const OP_TONE: Record<string, string> = {
-	patch: "text-[#b5c7e2]",
-	asset: "text-[#bdb2e6]",
-	decal: "text-[#9fd2ca]",
-	render: "text-[#9fd2ca]",
-	source: "text-[#e2c597]",
+	patch: "text-patch",
+	asset: "text-asset",
+	decal: "text-decal",
+	render: "text-decal",
+	source: "text-source",
 	undo: "text-warn",
 };
 
-function OpsLog({ state }: { state: StudioState }) {
+export function OpsLog({ state }: { state: StudioState }) {
 	const { ref, onScroll } = useStickToBottom(state.opsLog.length);
 	return (
 		<div
@@ -601,11 +435,11 @@ function safeHttp(u: unknown): string | null {
 }
 
 function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
-	const status = "min-w-0 flex-auto truncate text-[11px] text-muted-foreground";
+	const status = "min-w-0 flex-auto truncate text-xs text-muted-foreground";
 	return (
 		<div>
-			<div className="mb-1.5 flex min-w-0 items-center gap-2">
-				<span className="text-foreground max-w-[55%] flex-none truncate text-[12.5px] font-semibold">
+			<div className="mb-2 flex min-w-0 items-center gap-2 px-1">
+				<span className="text-foreground max-w-[55%] flex-none truncate text-sm font-semibold">
 					{g.name}
 				</span>
 				{g.status === "running" && (
@@ -627,7 +461,7 @@ function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
 					<Button
 						variant="outline"
 						size="xs"
-						className="text-muted-foreground hover:text-foreground h-5 rounded-md bg-transparent text-[11px]"
+						className="h-6 px-2.5 text-xs"
 						onClick={() => manager.cancel(g.taskId)}
 					>
 						Cancel
@@ -635,7 +469,7 @@ function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
 				)}
 			</div>
 			{g.products.length > 0 && (
-				<div className="grid grid-cols-1 gap-1.5">
+				<div className="grid grid-cols-2 gap-2">
 					{g.products.map((p, i) => (
 						// biome-ignore lint/suspicious/noArrayIndexKey: products have no id and the list never reorders
 						<ProductCard key={i} p={p} />
@@ -658,11 +492,12 @@ function ProductCard({ p }: { p: Product }) {
 				: null
 		: null;
 	const title = String(p.title ?? "").slice(0, 200);
+	const price = String(p.price ?? "").slice(0, 40);
 	const cls =
-		"grid grid-cols-[52px_minmax(0,1fr)] grid-rows-[auto_auto] items-center gap-x-2.5 gap-y-0.5 rounded-[9px] border border-border bg-muted py-1.5 pr-2 pl-1.5 [@media(max-height:860px)]:grid-cols-[44px_minmax(0,1fr)]";
+		"flex min-w-0 flex-col gap-2 rounded-[20px] bg-card p-1.5 pb-2.5 shadow-[var(--shadow-soft)] transition-shadow";
 	const body = (
 		<>
-			<span className="row-span-2 block size-13 overflow-hidden rounded-md bg-[#f2f1ee] [@media(max-height:860px)]:size-11">
+			<span className="bg-muted relative block aspect-square overflow-hidden rounded-2xl">
 				{src ? (
 					// biome-ignore lint/a11y/noNoninteractiveElementInteractions: onError is the image fallback chain, not an interaction
 					<img
@@ -670,37 +505,37 @@ function ProductCard({ p }: { p: Product }) {
 						alt=""
 						loading="lazy"
 						referrerPolicy="no-referrer"
-						className="block size-full object-contain"
+						className="block size-full object-cover"
 						onError={() => setStage((s) => (s === 0 ? 1 : 2))}
 					/>
 				) : (
 					<span
-						className="text-faint grid size-full place-items-center bg-[#22252c]"
+						className="text-faint grid size-full place-items-center"
 						aria-hidden
 					>
-						<House className="size-5" />
+						<House className="size-6" />
+					</span>
+				)}
+				{price && (
+					<span className="absolute top-2 left-2 inline-flex h-5.5 max-w-[calc(100%-16px)] items-center truncate rounded-full bg-black/60 px-2 text-xs font-semibold text-white">
+						{price}
 					</span>
 				)}
 			</span>
 			<span
-				className="text-foreground line-clamp-2 self-end text-[11px] leading-tight"
+				className="text-foreground line-clamp-2 px-1 text-sm leading-[18px] font-semibold"
 				title={title}
 			>
 				{title || "Product"}
 			</span>
-			<span className="flex min-w-0 items-baseline gap-2 self-start text-[10.5px]">
-				<b className="max-w-1/2 flex-none truncate font-semibold text-[#e2c597]">
-					{String(p.price ?? "").slice(0, 40)}
-				</b>
-				<span className="text-muted-foreground truncate">
-					{String(p.store ?? "").slice(0, 60)}
-				</span>
+			<span className="text-muted-foreground -mt-1 truncate px-1 text-xs">
+				{String(p.store ?? "").slice(0, 60)}
 			</span>
 		</>
 	);
 	return href ? (
 		<a
-			className={cn(cls, "hover:border-source/60 hover:bg-[#1c1e24]")}
+			className={cn(cls, "hover:shadow-[var(--shadow-float)]")}
 			href={href}
 			target="_blank"
 			rel="noopener noreferrer"
