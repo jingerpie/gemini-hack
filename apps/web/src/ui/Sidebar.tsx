@@ -483,7 +483,9 @@ function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
 function ProductCard({ p }: { p: Product }) {
 	const href = safeHttp(p.url);
 	const img = safeHttp(p.image_url);
-	const [stage, setStage] = useState<0 | 1 | 2>(img ? 0 : 2); // 0 proxy, 1 direct, 2 placeholder
+	// 0 proxy, 1 direct, 2 placeholder. Same-origin images (catalog photos served by the app) skip the proxy.
+	const local = !!img && new URL(img).origin === location.origin;
+	const [stage, setStage] = useState<0 | 1 | 2>(img ? (local ? 1 : 0) : 2);
 	const src = img
 		? stage === 0
 			? `/api/img?u=${encodeURIComponent(img)}`
