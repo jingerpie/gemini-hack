@@ -1,0 +1,69 @@
+:root {
+  --bg: #0c0d10;
+  --panel: #131418;
+  --panel-2: #17191e;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-2: rgba(255, 255, 255, 0.12);
+  --text: #e7e9ee;
+  --text-2: #b9bec8;
+  --muted: #7d838f;
+  --accent: #8270c0;
+  --sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 var(--sans); }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+.top { position: sticky; top: 0; z-index: 2; background: rgba(12, 13, 16, 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); padding: 14px 20px 12px; }
+.title { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.count { color: var(--muted); }
+.kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; color: var(--text-2); }
+.chip span { color: var(--muted); font-size: 11px; margin-left: 2px; }
+.chip:hover { border-color: var(--line-2); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.on span { color: rgba(255, 255, 255, 0.75); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; padding: 16px 20px 40px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
+.card:hover { border-color: var(--line-2); transform: translateY(-1px); }
+.card.pending { cursor: default; opacity: 0.55; }
+.card.pending:hover { transform: none; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; aspect-ratio: 2 / 1; }
+.ph { width: 100%; height: 100%; object-fit: contain; background: #f3f2ef; }
+.th { background: #1a1c21; display: grid; place-items: center; color: var(--muted); }
+.th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cap { padding: 9px 12px 11px; border-top: 1px solid var(--line); }
+.row { display: flex; justify-content: space-between; gap: 8px; }
+.row b { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kind { color: var(--muted); flex: none; }
+.sub { color: var(--muted); font-size: 12px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+.viewer { padding: 0; border: 1px solid var(--line-2); border-radius: 14px; background: var(--panel); color: var(--text); width: min(1200px, 94vw); height: min(760px, 90vh); max-width: none; max-height: none; }
+.viewer::backdrop { background: rgba(0, 0, 0, 0.6); }
+.viewer-body { display: grid; grid-template-columns: 1fr 320px; height: 100%; }
+.stage { position: relative; min-height: 0; }
+.stage canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+.info { position: relative; border-left: 1px solid var(--line); padding: 16px; overflow-y: auto; }
+.close { position: absolute; top: 8px; right: 10px; background: none; border: 0; font-size: 22px; color: var(--muted); }
+.close:hover { color: var(--text); }
+.photo { width: 100%; aspect-ratio: 1; object-fit: contain; background: #f3f2ef; border-radius: 8px; }
+.info h2 { font-size: 15px; margin: 12px 0 8px; }
+.meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0 0 12px; }
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.nav-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.nav-row button { flex: 1; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+.nav-row button:hover { border-color: var(--line-2); }
+.code summary { cursor: pointer; color: var(--text-2); }
+.code pre { font: 11px/1.4 var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow: auto; max-height: 320px; white-space: pre; }
+
+@media (max-width: 760px) {
+  .grid { grid-template-columns: 1fr; padding: 12px 16px 32px; }
+  .top { padding: 12px 16px; }
+  .viewer { width: 100vw; height: 100vh; border-radius: 0; }
+  .viewer-body { grid-template-columns: 1fr; grid-template-rows: 55% 45%; }
+  .info { border-left: 0; border-top: 1px solid var(--line); }
+}
