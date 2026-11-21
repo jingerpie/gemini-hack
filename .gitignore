@@ -8,11 +8,6 @@ dist
 build
 *.tsbuildinfo
 
-# Generated files
-apps/web/src/routeTree.gen.ts
-local.db
-local.db-*
-
 # Environment variables
 .env
 .env*.local
@@ -43,9 +38,6 @@ lerna-debug.log*
 .turbo
 .nx
 
-# Better-T-Stack
-.alchemy
-.vercel
 
 # Testing
 coverage
@@ -59,3 +51,6 @@ temp
 
 # Playwright MCP page snapshots
 .playwright-mcp/
+
+# Server bench and test outputs
+apps/server/test/out/

@@ -1,32 +1,18 @@
 {
-  "name": "server",
-  "type": "module",
-  "main": "src/index.ts",
-  "scripts": {
-    "build": "tsc -b ../../packages/api && tsdown",
-    "check-types": "tsc -b ../../packages/api && tsc --noEmit",
-    "compile": "bun build --compile --no-compile-autoload-dotenv --minify --sourcemap --bytecode ./src/index.ts --outfile server",
-    "dev": "bun run --hot src/index.ts",
-    "start": "bun run dist/index.mjs",
-    "env:generate": "varlock codegen",
-    "auth:generate": "varlock run -- bun x auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes"
-  },
-  "dependencies": {
-    "@gemini-hack/api": "workspace:*",
-    "@gemini-hack/auth": "workspace:*",
-    "@gemini-hack/db": "workspace:*",
-    "@orpc/openapi": "catalog:",
-    "@orpc/server": "catalog:",
-    "@orpc/zod": "catalog:",
-    "better-auth": "catalog:",
-    "hono": "^4.13.18",
-    "varlock": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@gemini-hack/config": "workspace:*",
-    "@types/bun": "catalog:",
-    "tsdown": "^0.23.7",
-    "typescript": "catalog:"
-  }
+	"name": "server",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"main": "index.mjs",
+	"scripts": {
+		"dev": "node --watch index.mjs",
+		"start": "node index.mjs"
+	},
+	"dependencies": {
+		"@gemini-hack/catalog": "workspace:*",
+		"@google/genai": "^3.6.1",
+		"@hono/node-server": "^2.1.11",
+		"hono": "^4.13.19",
+		"three": "^0.170.0"
+	}
 }

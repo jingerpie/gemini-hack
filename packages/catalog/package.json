@@ -1,0 +1,11 @@
+{
+	"name": "@gemini-hack/catalog",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./index.mjs",
+		"./catalog.json": "./mock-shop/catalog.json",
+		"./package.json": "./package.json"
+	}
+}
