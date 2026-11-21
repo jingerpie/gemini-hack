@@ -293,7 +293,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   let capturedRT: THREE.WebGLRenderTarget | null = null;
   let envDirty = true;
   let envDirtySince = 0;
-  const CAPTURE_BG = new THREE.Color(0xd9d2c6); // the missing front wall reads as a soft warm wall in reflections
+  const CAPTURE_BG = new THREE.Color(0x5a524b); // the open front reads as a dim warm wall in reflections
   const markEnvDirty = () => {
     if (!envDirty) envDirtySince = performance.now();
     envDirty = true;
@@ -310,7 +310,11 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   controls.maxPolarAngle = 1.5;
   controls.minAzimuthAngle = -1.3;
   controls.maxAzimuthAngle = 1.3;
-  controls.addEventListener("start", () => tweens.cancel("camera"));
+  let autoFrame = true; // keep re-framing the whole room on resize until the user takes the camera
+  controls.addEventListener("start", () => {
+    tweens.cancel("camera");
+    autoFrame = false;
+  });
   camera.layers.enable(FX_LAYER);
 
   // ---------------- lights
@@ -1117,6 +1121,12 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    if (autoFrame && !disposed && scene) {
+      const p = defaultPose();
+      tweens.cancel("camera");
+      camera.position.copy(p.pos);
+      controls.target.copy(p.target);
+    }
   }
   const ro = new ResizeObserver(() => {
     if (!disposed) resize();
@@ -1259,11 +1269,15 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     focus(id) {
       if (disposed || typeof id !== "string") return;
       const f = focusTarget(id);
-      if (f) glide(f.pos, f.target);
+      if (f) {
+        autoFrame = false;
+        glide(f.pos, f.target);
+      }
     },
 
     resetView() {
       if (disposed) return;
+      autoFrame = true;
       const p = defaultPose();
       glide(p.pos, p.target);
     },

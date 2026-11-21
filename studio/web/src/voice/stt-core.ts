@@ -66,6 +66,8 @@ const CONTINUATIONS = new Set([
   "my", "your", "its", "their", "our", "this", "these", "those", "some", "is", "are", "was", "be", "it's", "its",
   "very", "really", "more", "than", "just", "maybe", "actually", "please", "lets", "let", "make", "put", "add",
   "paint", "place", "move", "turn", "change", "i", "we", "want", "need", "would", "could", "can", "should",
+  "about", "around", "toward", "towards", "against", "across", "through", "inside", "outside", "beside", "which",
+  "where", "if", "as", "whole", "kind", "sort", "um", "make", "give",
 ]);
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -158,7 +160,7 @@ export class Vad {
 // ----------------------------------------------------------------------------------------------------------------
 // Segmenter: audio frames + transcript events in -> interim text / utterances out. Pure logic, injectable clock.
 // ----------------------------------------------------------------------------------------------------------------
-export type CommitReason = "final" | "punct" | "cap" | "quiet" | "hold" | "server-final" | "long-run" | "flush";
+export type CommitReason = "final" | "punct" | "cap" | "quiet" | "hold" | "server-final" | "long-run" | "recovered" | "flush";
 export type UtteranceInfo = { reason: CommitReason; speechEndAt: number; at: number };
 
 export type SegmenterEvents = {
@@ -344,6 +346,7 @@ export class Segmenter {
   handleInterim(text: string): void {
     const now = this.now();
     const toks = tokenize(text);
+    this.ev.log?.(`raw interim "${text}"`);
     if (!toks.length) return;
     // A late interim of the turn that was just finalised must not be read as a new turn (would duplicate words).
     if (now - this.lastFinalAt < 2500 && this.isPrefixOfLastFinal(toks)) return;
@@ -352,7 +355,7 @@ export class Segmenter {
     this.lastInterimAt = now;
     if (changed) this.lastInterimChangeAt = now;
     this.show();
-    if (changed) this.tryPunctEarly(now);
+    this.tryPunctEarly(now); // also when only punctuation changed ("the cube" -> "the cube?")
   }
 
   /** Final = authoritative full text of the turn that just ended; the next interim starts a new turn. */
@@ -380,6 +383,41 @@ export class Segmenter {
       if (big || (!recent && !this.vad.inSpeech && !this.hasSpeech)) this.commit("server-final", now);
     }
     this.show();
+  }
+
+  /**
+   * Interims are speculative and occasionally never show a stretch of words that the final then contains (seen live:
+   * "...left of it. [Actually,] Remove the cube"). Diff the final against what this turn already committed and emit
+   * any inserted run of >= 3 words (insertions only, not rewordings) so it is not lost.
+   */
+  private recoverGaps(f: Tok[], now: number) {
+    const d = this.doneNorms;
+    if (!d.length || !f.length) return;
+    const n = f.length;
+    const m = d.length;
+    const L: Int32Array[] = [];
+    for (let i = 0; i <= n; i++) L.push(new Int32Array(m + 1));
+    for (let i = n - 1; i >= 0; i--)
+      for (let j = m - 1; j >= 0; j--) L[i][j] = f[i].norm === d[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    let i = 0;
+    let j = 0;
+    let gap: Tok[] = [];
+    let dSkip = 0;
+    let anchored = false;
+    while (i < n && j < m) {
+      if (f[i].norm === d[j]) {
+        if (anchored && gap.length >= 3 && dSkip <= 1 && !gap.every((t) => FILLER_ONLY.has(t.norm))) {
+          this.ev.log?.(`recovered words missing from interims: "${joinToks(gap)}"`);
+          this.emit(gap, { reason: "recovered", speechEndAt: now, at: now });
+        }
+        gap = [];
+        dSkip = 0;
+        anchored = true;
+        i++;
+        j++;
+      } else if (L[i + 1][j] >= L[i][j + 1]) gap.push(f[i++]);
+      else (j++, dSkip++);
+    }
   }
 
   /** The recogniser session was replaced: treat the current interim as final text. */

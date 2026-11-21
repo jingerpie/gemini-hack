@@ -77,7 +77,7 @@ export type HistoryItem = { u: string; applied: string };
 
 // POST /api/patch
 export type PatchRequest = { scene: Scene; history: HistoryItem[]; utterance: string };
-export type PatchResponse = { ops: Op[]; jobs: Job[]; say: string; ms: number; model: string };
+export type PatchResponse = { ops: Op[]; jobs: Job[]; say: string; ms: number; model: string; dropped?: string[] /* ops the server discarded */ };
 
 // POST /api/asset  (body: AssetRequest) -> text/event-stream, each line `data: <AssetEvent json>\n\n`
 export type AssetRequest = { objectId: string; name: string; description: string; size: Vec3; currentCode?: string };
@@ -91,7 +91,17 @@ export type AssetEvent =
 
 // POST /api/decal
 export type DecalRequest = { decalId: string; prompt: string; width: number; height: number };
-export type DecalResponse = { dataUrl: string; ms: number; model: string };
+export type DecalResponse = { dataUrl: string; ms: number; model: string; aspectRatio?: string /* nearest supported ratio, not exactly width/height */ };
+
+// POST /api/source (body: SourceRequest) -> text/event-stream, each line `data: <SourceEvent json>\n\n`
+// A Managed Agent searches the web for real products matching a custom object. Slow (45-125 s); started by the
+// client alongside the asset job for a newly added custom object (not for rebuilds).
+export type SourceRequest = { objectId: string; name: string; description: string };
+export type Product = { title: string; price: string; store: string; url: string; image_url: string };
+export type SourceEvent =
+  | { type: "status"; text: string }
+  | { type: "done"; products: Product[]; ms: number; model: string }
+  | { type: "error"; message: string };
 
 // GET /api/token -> ephemeral token for the browser to open a gemini-3.5-transcribe-live session
 export type TokenResponse = { token: string; model: string; apiVersion: string };
