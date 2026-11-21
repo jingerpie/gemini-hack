@@ -1,5 +1,6 @@
 import { Badge } from "@gemini-hack/ui/components/badge";
 import { Button } from "@gemini-hack/ui/components/button";
+import { Skeleton } from "@gemini-hack/ui/components/skeleton";
 import { Spinner } from "@gemini-hack/ui/components/spinner";
 import { cn } from "@gemini-hack/ui/lib/utils";
 import { House } from "lucide-react";
@@ -40,7 +41,7 @@ function PanelHead({ title, meta }: { title: ReactNode; meta?: ReactNode }) {
 	);
 }
 
-/** Right column of the studio: products to buy for the room, then the work in flight. */
+/** Right column of the studio: alternatives for the newest catalog piece, then the work in flight. */
 export function Sidebar({
 	state,
 	manager,
@@ -48,27 +49,59 @@ export function Sidebar({
 	state: StudioState;
 	manager: TaskManager;
 }) {
-	const productCount = state.shop.reduce((n, g) => n + g.products.length, 0);
+	// One group at a time: the newest, which is also the list "the second one" refers to (taskManager.optionsOnScreen).
+	const group = state.shop.length ? state.shop[state.shop.length - 1] : null;
+	const placing = state.tasks.some(
+		(t) =>
+			t.kind === "patch" && (t.status === "running" || t.status === "held"),
+	);
 	return (
 		<aside className="flex min-h-0 w-full min-w-0 flex-col gap-3">
-			{state.shop.length > 0 && (
+			{(group || placing) && (
 				<section
 					aria-label="Shop the look"
-					className={cn(
-						surface,
-						"flex min-h-0 flex-col",
-						productCount ? "flex-[1.2_1_0]" : "flex-none",
-					)}
+					className={cn(surface, "flex min-h-0 flex-[1.2_1_0] flex-col")}
 				>
-					<PanelHead title="Shop the look" meta={productCount || ""} />
-					<div className={cn(scroller, "flex flex-col gap-4 px-4 pb-4")}>
-						{state.shop
-							.slice()
-							.reverse()
-							.map((g) => (
-								<ShopGroupView key={g.objectId} g={g} manager={manager} />
-							))}
+					<div className="flex flex-none flex-col gap-1 px-5 pt-4.5 pb-3">
+						<div className="flex items-center gap-2">
+							<h2 className="text-xl leading-[22px] font-semibold tracking-[-1px]">
+								Shop the look
+							</h2>
+							{group && (
+								<span className="text-muted-foreground text-sm font-semibold">
+									{group.products.length}
+								</span>
+							)}
+						</div>
+						{group ? (
+							<p className="text-muted-foreground truncate text-sm">
+								{group.current ? (
+									<>
+										Alternatives for{" "}
+										<b className="text-foreground font-semibold">
+											{group.name}
+										</b>
+									</>
+								) : (
+									<b className="text-foreground font-semibold">{group.name}</b>
+								)}
+							</p>
+						) : (
+							<Skeleton className="h-4 w-44 rounded-full" />
+						)}
 					</div>
+					<div className={cn(scroller, "px-4 pt-1 pb-4")}>
+						{group ? (
+							<ShopGroupView g={group} manager={manager} />
+						) : (
+							<ProductGridSkeleton />
+						)}
+					</div>
+					{group?.current && (
+						<p className="text-muted-foreground border-border flex-none border-t px-5 py-3 text-xs">
+							Say “swap for the second one”, or name a card.
+						</p>
+					)}
 				</section>
 			)}
 
@@ -436,56 +469,73 @@ function safeHttp(u: unknown): string | null {
 
 function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
 	const status = "min-w-0 flex-auto truncate text-xs text-muted-foreground";
+	const busy = g.status === "running" && !g.products.length;
 	return (
-		<div>
-			<div className="mb-2 flex min-w-0 items-center gap-2 px-1">
-				<span className="text-foreground max-w-[55%] flex-none truncate text-sm font-semibold">
-					{g.name}
-				</span>
-				{g.status === "running" && (
-					<span className={cn(status, "flex items-center gap-1.5")}>
-						<Spinner className="size-3" />
-						{g.statusLine}
-					</span>
-				)}
-				{g.status === "failed" && (
-					<span className={cn(status, "text-bad")}>
-						no products · {g.statusLine}
-					</span>
-				)}
-				{g.status === "cancelled" && <span className={status}>cancelled</span>}
-				{g.current ? (
-					<span className={status}>
-						Say “swap for the second one” or a name
-					</span>
-				) : (
-					g.status === "done" &&
-					g.model && <span className={status}>{g.model}</span>
-				)}
-				{g.status === "running" && (
-					<Button
-						variant="outline"
-						size="xs"
-						className="h-6 px-2.5 text-xs"
-						onClick={() => manager.cancel(g.taskId)}
-					>
-						Cancel
-					</Button>
-				)}
-			</div>
-			{g.products.length > 0 && (
-				<div className="grid grid-cols-2 gap-2">
-					{g.products.map((p, i) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: products have no id and the list never reorders
-						<ProductCard
-							key={i}
-							p={p}
-							n={g.current ? i + 1 : undefined}
-							inRoom={!!g.current && p.catalogId === g.current}
-						/>
-					))}
+		<div className="flex flex-col gap-2">
+			{!g.current && g.status !== "done" && (
+				<div className="flex min-w-0 items-center gap-2 px-1">
+					{g.status === "running" && (
+						<span className={cn(status, "flex items-center gap-1.5")}>
+							<Spinner className="size-3" />
+							{g.statusLine}
+						</span>
+					)}
+					{g.status === "failed" && (
+						<span className={cn(status, "text-bad")}>
+							no products · {g.statusLine}
+						</span>
+					)}
+					{g.status === "cancelled" && (
+						<span className={status}>cancelled</span>
+					)}
+					{g.status === "running" && (
+						<Button
+							variant="outline"
+							size="xs"
+							className="h-6 px-2.5 text-xs"
+							onClick={() => manager.cancel(g.taskId)}
+						>
+							Cancel
+						</Button>
+					)}
 				</div>
 			)}
+			{busy ? (
+				<ProductGridSkeleton />
+			) : (
+				g.products.length > 0 && (
+					<div className="grid grid-cols-2 gap-3">
+						{g.products.map((p, i) => (
+							<ProductCard
+								// biome-ignore lint/suspicious/noArrayIndexKey: products have no id and the list never reorders
+								key={i}
+								p={p}
+								n={g.current ? i + 1 : undefined}
+								inRoom={!!g.current && p.catalogId === g.current}
+							/>
+						))}
+					</div>
+				)
+			)}
+		</div>
+	);
+}
+
+const cardBase =
+	"flex min-w-0 flex-col gap-2 rounded-[20px] bg-card p-1.5 pb-3 shadow-[var(--shadow-soft)] transition-shadow";
+
+/** Placeholder cards while a placement is on its way (same footprint as ProductCard). */
+function ProductGridSkeleton({ count = 4 }: { count?: number }) {
+	return (
+		<div className="grid grid-cols-2 gap-3" aria-hidden>
+			{Array.from({ length: count }, (_, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: fixed-length placeholder list
+				<div key={i} className={cardBase}>
+					<Skeleton className="aspect-square w-full rounded-2xl" />
+					<Skeleton className="mx-1 h-4 w-3/4 rounded-full" />
+					<Skeleton className="mx-1 h-3.5 w-1/2 rounded-full" />
+				</div>
+			))}
 		</div>
 	);
 }
@@ -504,6 +554,7 @@ function ProductCard({
 	// 0 proxy, 1 direct, 2 placeholder. Same-origin images (catalog photos served by the app) skip the proxy.
 	const local = !!img && new URL(img).origin === location.origin;
 	const [stage, setStage] = useState<0 | 1 | 2>(img ? (local ? 1 : 0) : 2);
+	const [loaded, setLoaded] = useState(false);
 	const src = img
 		? stage === 0
 			? `/api/img?u=${encodeURIComponent(img)}`
@@ -513,23 +564,27 @@ function ProductCard({
 		: null;
 	const title = String(p.title ?? "").slice(0, 200);
 	const price = String(p.price ?? "").slice(0, 40);
-	const cls = cn(
-		"bg-card flex min-w-0 flex-col gap-2 rounded-[20px] p-1.5 pb-2.5 shadow-[var(--shadow-soft)] transition-shadow",
-		inRoom && "ring-primary ring-2",
-	);
+	const store = String(p.store ?? "").slice(0, 60);
 	const body = (
 		<>
 			<span className="bg-muted relative block aspect-square overflow-hidden rounded-2xl">
 				{src ? (
-					// biome-ignore lint/a11y/noNoninteractiveElementInteractions: onError is the image fallback chain, not an interaction
-					<img
-						src={src}
-						alt=""
-						loading="lazy"
-						referrerPolicy="no-referrer"
-						className="block size-full object-cover"
-						onError={() => setStage((s) => (s === 0 ? 1 : 2))}
-					/>
+					<>
+						{!loaded && <Skeleton className="absolute inset-0 rounded-none" />}
+						{/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: onError is the image fallback chain, not an interaction */}
+						<img
+							src={src}
+							alt=""
+							loading="lazy"
+							referrerPolicy="no-referrer"
+							className={cn(
+								"block size-full object-cover transition-opacity duration-300",
+								loaded ? "opacity-100" : "opacity-0",
+							)}
+							onLoad={() => setLoaded(true)}
+							onError={() => setStage((s) => (s === 0 ? 1 : 2))}
+						/>
+					</>
 				) : (
 					<span
 						className="text-faint grid size-full place-items-center"
@@ -538,33 +593,31 @@ function ProductCard({
 						<House className="size-6" />
 					</span>
 				)}
-				{(n || inRoom) && (
-					<span
-						className={cn(
-							"absolute top-2 right-2 inline-flex h-5.5 items-center rounded-full px-2 text-xs font-semibold",
-							inRoom ? "bg-primary text-white" : "text-foreground bg-white/90",
-						)}
-					>
-						{inRoom ? "In room" : n}
+				{inRoom ? (
+					<span className="bg-primary absolute top-2 left-2 inline-flex h-6 items-center rounded-full px-2.5 text-xs font-semibold text-white">
+						In room
 					</span>
-				)}
-				{price && (
-					<span className="absolute top-2 left-2 inline-flex h-5.5 max-w-[calc(100%-16px)] items-center truncate rounded-full bg-black/60 px-2 text-xs font-semibold text-white">
-						{price}
+				) : n ? (
+					<span className="text-foreground absolute top-2 left-2 grid size-6 place-items-center rounded-full bg-white/90 text-xs font-semibold">
+						{n}
 					</span>
-				)}
+				) : null}
 			</span>
-			<span
-				className="text-foreground line-clamp-2 px-1 text-sm leading-[18px] font-semibold"
-				title={title}
-			>
-				{title || "Product"}
-			</span>
-			<span className="text-muted-foreground -mt-1 truncate px-1 text-xs">
-				{String(p.store ?? "").slice(0, 60)}
+			<span className="flex min-w-0 flex-col gap-0.5 px-1.5">
+				<span
+					className="text-foreground truncate text-sm leading-[18px] font-semibold"
+					title={title}
+				>
+					{title || "Product"}
+				</span>
+				<span className="flex min-w-0 items-baseline gap-1.5 text-xs">
+					{price && <b className="flex-none font-semibold">{price}</b>}
+					<span className="text-muted-foreground truncate">{store}</span>
+				</span>
 			</span>
 		</>
 	);
+	const cls = cn(cardBase, inRoom && "ring-primary ring-2");
 	return href ? (
 		<a
 			className={cn(cls, "hover:shadow-[var(--shadow-float)]")}
