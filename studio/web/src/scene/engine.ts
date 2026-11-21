@@ -79,6 +79,11 @@ class Tweens {
   clear() {
     this.m.clear();
   }
+  /** true while any animation other than the camera glide is running */
+  busy() {
+    for (const k of this.m.keys()) if (k !== "camera") return true;
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -226,6 +231,13 @@ type DecalView = {
 };
 
 let serial = 0;
+const BASE_ENV_INTENSITY = 0.5; // generic studio env (before the first room capture)
+const ROOM_ENV_INTENSITY = 1.0; // captured room env
+const FX_LAYER = 1; // placeholders / labels: visible to the main camera, invisible to the reflection capture
+
+function setLayer(o: THREE.Object3D, layer: number) {
+  o.traverse((c) => c.layers.set(layer));
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -260,18 +272,30 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   container.appendChild(canvas);
 
   const s3 = new THREE.Scene();
-  s3.background = new THREE.Color(0x15171c);
+  const BG = new THREE.Color(0x15171c);
+  s3.background = BG;
   const pmrem = new THREE.PMREMGenerator(renderer);
   const roomEnv = new RoomEnvironment();
   const envRT = pmrem.fromScene(roomEnv, 0.04);
   s3.environment = envRT.texture;
-  s3.environmentIntensity = 0.5;
+  s3.environmentIntensity = BASE_ENV_INTENSITY;
   roomEnv.traverse((o) => {
     const m = o as THREE.Mesh;
     m.geometry?.dispose();
     (m.material as THREE.Material | undefined)?.dispose?.();
   });
-  pmrem.dispose();
+  // Reflections of the ACTUAL room: a cube capture from inside the room, prefiltered with PMREM, refreshed only
+  // when the scene changed and animations have settled. Glossy walls/floors/objects then visibly mirror the room.
+  const cubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+  const cubeCam = new THREE.CubeCamera(0.05, 80, cubeRT);
+  let capturedRT: THREE.WebGLRenderTarget | null = null;
+  let envDirty = true;
+  let envDirtySince = 0;
+  const CAPTURE_BG = new THREE.Color(0xd9d2c6); // the missing front wall reads as a soft warm wall in reflections
+  const markEnvDirty = () => {
+    if (!envDirty) envDirtySince = performance.now();
+    envDirty = true;
+  };
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 120);
   const controls = new OrbitControls(camera, canvas);
@@ -285,6 +309,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   controls.minAzimuthAngle = -1.3;
   controls.maxAzimuthAngle = 1.3;
   controls.addEventListener("start", () => tweens.cancel("camera"));
+  camera.layers.enable(FX_LAYER);
 
   // ---------------- lights
   const hemi = new THREE.HemisphereLight(0xfff2e2, 0x5e5044, 0.5);
@@ -535,6 +560,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     const label = makeLabel((kind === "fill" ? "Building " : "Rebuilding ") + o.name + "…");
     label.position.y = s.y + 0.1;
     group.add(edges, scan, label);
+    setLayer(group, FX_LAYER);
     v.body.add(group);
     v.fx = { group, fill: fillMesh, edges, scan, label, size: { ...s }, key: k, t0 };
   }
@@ -753,6 +779,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
         v.imgUrl = url;
         applyDecalSize(v);
         const done = () => {
+          markEnvDirty();
           v.ph.visible = false;
           if (old) {
             v.root.remove(old);
@@ -840,6 +867,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     );
     const root = new THREE.Group();
     root.name = "decal:" + d.id;
+    ph.layers.set(FX_LAYER);
     root.add(ph);
     const v: DecalView = { id: d.id, key: d.id + "#" + ++serial, d: structuredClone(d), root, size: { w: d.width, h: d.height }, ph, phKey: "", failed: false, t0: performance.now() };
     decalViews.set(d.id, v);
@@ -886,6 +914,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   }
 
   function reconcile(animate: boolean) {
+    markEnvDirty();
     if (JSON.stringify(scene.room) !== builtRoomKey) {
       buildRoom();
       for (const v of decalViews.values()) syncDecal(v, v.d, false, false);
@@ -1025,10 +1054,39 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     if (camera.position.y < 0.15) camera.position.y = 0.15;
   }
 
+  function captureEnv() {
+    const { depth: D, height: H } = scene.room;
+    const ceilVis = surfMeshes.ceiling?.visible ?? true;
+    if (surfMeshes.ceiling) surfMeshes.ceiling.visible = true;
+    const frameVis = WALL_IDS.map((w) => wallFrames[w].visible);
+    for (const w of WALL_IDS) wallFrames[w].visible = true;
+    s3.background = CAPTURE_BG;
+    s3.environment = envRT.texture;
+    s3.environmentIntensity = BASE_ENV_INTENSITY;
+    cubeCam.position.set(0, H * 0.45, D * 0.1);
+    cubeCam.update(renderer, s3);
+    s3.background = BG;
+    if (surfMeshes.ceiling) surfMeshes.ceiling.visible = ceilVis;
+    WALL_IDS.forEach((w, i) => (wallFrames[w].visible = frameVis[i]));
+    capturedRT = pmrem.fromCubemap(cubeRT.texture, capturedRT ?? undefined);
+    s3.environment = capturedRT.texture;
+    s3.environmentIntensity = ROOM_ENV_INTENSITY;
+  }
+
   function frame() {
     if (disposed) return;
     const now = performance.now();
     tweens.tick(now);
+    if (envDirty && (!tweens.busy() || now - envDirtySince > 1500)) {
+      envDirty = false;
+      try {
+        captureEnv();
+      } catch (e) {
+        console.warn("[engine] env capture failed", e);
+        s3.environment = envRT.texture;
+        s3.environmentIntensity = BASE_ENV_INTENSITY;
+      }
+    }
     for (const v of views.values()) if (v.fx) animateFx(v.fx, now);
     for (const v of decalViews.values()) {
       if (v.ph.visible && !v.img && !v.failed) {
@@ -1119,6 +1177,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
           disposeObject(pendingPrepared.model.group);
           pendingPrepared = null;
         }
+        markEnvDirty();
         console.info(`[engine] model for ${objectId}: ${res.model.meshCount} meshes -> ${res.model.drawCount} draw calls`);
         notify();
       } else disposeObject(res.model.group);
@@ -1215,6 +1274,9 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
       for (const p of textureCache.values()) p.then((t) => t.dispose()).catch(() => {});
       textureCache.clear();
       envRT.dispose();
+      cubeRT.dispose();
+      capturedRT?.dispose();
+      pmrem.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();
