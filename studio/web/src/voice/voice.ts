@@ -9,7 +9,7 @@ import { GeminiStt, SAMPLE_RATE, Segmenter, TUNING } from "./stt-core";
 
 export { TUNING as VOICE_TUNING };
 
-const LEVEL_INTERVAL_MS = 66; // ~15 onLevel calls per second
+const LEVEL_INTERVAL_MS = 66; // ~15 onLevel calls per second (peak RMS over each interval)
 const GEMINI_RETRY_MS = 3000; // ?stt=gemini: wait between restart attempts after a fatal error
 
 // AudioWorklet: box-filter decimation of the mic stream to 16 kHz, posts 20 ms Int16 frames. Loaded from a Blob URL so
@@ -134,6 +134,7 @@ class BrowserStt {
     };
     rec.onerror = (e: any) => {
       const err = String(e?.error || "unknown");
+      if (err !== "no-speech" && err !== "aborted") console.warn("[voice] browser speech error:", err);
       if (err === "not-allowed" || err === "service-not-allowed" || err === "audio-capture") {
         this.stopped = true;
         this.onFatal(`browser speech: ${err}`);
@@ -201,7 +202,7 @@ export function createVoice(handlers: VoiceHandlers): Voice {
     if (rms > levelMax) levelMax = rms;
     const now = performance.now();
     if (now - levelAt >= LEVEL_INTERVAL_MS) {
-      levelAt = now;
+      levelAt = now - levelAt > 4 * LEVEL_INTERVAL_MS ? now : levelAt + LEVEL_INTERVAL_MS; // fixed cadence despite 20 ms frame jitter
       h.onLevel(meter(levelMax));
       levelMax = 0;
     }

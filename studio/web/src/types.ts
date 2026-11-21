@@ -76,7 +76,8 @@ export type HistoryItem = { u: string; applied: string };
 // ---------- HTTP API (server on :8787, proxied by Vite at /api) ----------
 
 // POST /api/patch
-export type PatchRequest = { scene: Scene; history: HistoryItem[]; utterance: string };
+// `image` (optional): JPEG data URL of the canvas, used only when the request is escalated to the designer model.
+export type PatchRequest = { scene: Scene; history: HistoryItem[]; utterance: string; image?: string };
 export type PatchResponse = { ops: Op[]; jobs: Job[]; say: string; ms: number; model: string; dropped?: string[] /* ops the server discarded */ };
 
 // POST /api/asset  (body: AssetRequest) -> text/event-stream, each line `data: <AssetEvent json>\n\n`
@@ -102,6 +103,11 @@ export type SourceEvent =
   | { type: "status"; text: string }
   | { type: "done"; products: Product[]; ms: number; model: string }
   | { type: "error"; message: string };
+
+// POST /api/render -> photorealistic picture of the current room, made by the image model from a canvas screenshot.
+// The 3D scene stays the source of truth; the render is a picture of it, not a replacement.
+export type RenderRequest = { image: string /* jpeg/png data URL of the canvas */; scene?: Scene; style?: string };
+export type RenderResponse = { dataUrl: string; ms: number; model: string };
 
 // GET /api/token -> ephemeral token for the browser to open a gemini-3.5-transcribe-live session
 export type TokenResponse = { token: string; model: string; apiVersion: string };

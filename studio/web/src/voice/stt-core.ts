@@ -616,6 +616,7 @@ export class GeminiStt {
   private goAwayDeadline = 0;
   private drops: number[] = [];
   private queue: Int16Array[] = [];
+  private queueStreamEnd = false;
   private batch: Int16Array[] = [];
   private lastHousekeeping = 0;
 
@@ -756,6 +757,14 @@ export class GeminiStt {
       this.queue = [];
       for (let i = 0; i < q.length; i += 5) this.sendNow(link, q.slice(i, i + 5));
     }
+    if (this.queueStreamEnd) {
+      this.queueStreamEnd = false;
+      try {
+        link.session.sendRealtimeInput({ audioStreamEnd: true });
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   private onMessage(gen: number, m: LiveServerMessage) {
@@ -824,6 +833,14 @@ export class GeminiStt {
         link.session.close();
         return;
       }
+      const forced = this.goAwayDeadline > 0 && this.now() >= this.goAwayDeadline;
+      if (!forced && this.active && this.seg.idleMs() < TUNING.RECONNECT_IDLE_MS) {
+        // the user started talking while we connected: keep the old session (it has the words), retry later
+        this.o.log?.("rotation postponed: speech started during connect");
+        link.session.close();
+        this.nextSwapTry = this.now() + 1500;
+        return;
+      }
       this.seg.rebaseTurn();
       this.activate(link);
       this.o.log?.("rotated to a fresh session");
@@ -850,7 +867,7 @@ export class GeminiStt {
 
   private sendStreamEnd() {
     if (!this.active) {
-      this.queue = []; // nothing useful to replay once the segment has ended
+      this.queueStreamEnd = true; // replay the queued audio first, then end the segment
       return;
     }
     this.flushBatch();
