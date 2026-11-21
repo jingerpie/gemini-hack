@@ -8,7 +8,7 @@ export const DEFAULT_SCENE: Scene = {
     wall_back: { id: "wall_back", color: "#e8e2d8", material: { roughness: 0.92, metalness: 0 } },
     wall_left: { id: "wall_left", color: "#e4ddd2", material: { roughness: 0.92, metalness: 0 } },
     wall_right: { id: "wall_right", color: "#e4ddd2", material: { roughness: 0.92, metalness: 0 } },
-    floor: { id: "floor", color: "#b07f52", material: { roughness: 0.55, metalness: 0 } },
+    floor: { id: "floor", color: "#a27b58", material: { roughness: 0.55, metalness: 0 } },
     ceiling: { id: "ceiling", color: "#f3f1ec", material: { roughness: 0.95, metalness: 0 } },
   },
   objects: [

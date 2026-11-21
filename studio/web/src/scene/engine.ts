@@ -194,7 +194,9 @@ type Fx = {
   group: THREE.Group;
   fill?: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
   edges: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
-  scan: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  scan: THREE.Group;
+  scanFill: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  scanLine: THREE.LineLoop<THREE.BufferGeometry, THREE.LineBasicMaterial>;
   label: THREE.Sprite;
   size: Vec3;
   key: string;
@@ -312,9 +314,9 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   camera.layers.enable(FX_LAYER);
 
   // ---------------- lights
-  const hemi = new THREE.HemisphereLight(0xfff2e2, 0x5e5044, 0.5);
+  const hemi = new THREE.HemisphereLight(0xfff2e2, 0x5e5044, 0.35);
   s3.add(hemi);
-  const key = new THREE.DirectionalLight(0xffe0bd, 2.7);
+  const key = new THREE.DirectionalLight(0xffe0bd, 3.0);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
   key.shadow.bias = -0.0004;
@@ -552,17 +554,25 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
       new THREE.LineBasicMaterial({ color: 0xb4e6ff, transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false }),
     );
     if (kind !== "fill") boxGeo.dispose();
-    const scan = new THREE.Mesh(
-      new THREE.PlaneGeometry(s.x * 1.03, s.z * 1.03).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x8fdcff, transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false }),
+    // scanner: a faint slice + bright outline sweeping bottom -> top
+    const sx = s.x * 1.02 / 2, sz = s.z * 1.02 / 2;
+    const scanFill = new THREE.Mesh(
+      new THREE.PlaneGeometry(sx * 2, sz * 2).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x7fd4ff, transparent: true, opacity: 0.15, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
     );
+    const scanLine = new THREE.LineLoop(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-sx, 0, -sz), new THREE.Vector3(sx, 0, -sz), new THREE.Vector3(sx, 0, sz), new THREE.Vector3(-sx, 0, sz)]),
+      new THREE.LineBasicMaterial({ color: 0xd8f3ff, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }),
+    );
+    const scan = new THREE.Group();
+    scan.add(scanFill, scanLine);
     scan.renderOrder = 3;
     const label = makeLabel((kind === "fill" ? "Building " : "Rebuilding ") + o.name + "…");
     label.position.y = s.y + 0.1;
     group.add(edges, scan, label);
     setLayer(group, FX_LAYER);
     v.body.add(group);
-    v.fx = { group, fill: fillMesh, edges, scan, label, size: { ...s }, key: k, t0 };
+    v.fx = { group, fill: fillMesh, edges, scan, scanFill, scanLine, label, size: { ...s }, key: k, t0 };
   }
 
   function animateFx(fx: Fx, now: number) {
@@ -571,8 +581,10 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     if (fx.fill) fx.fill.material.opacity = 0.07 + 0.13 * pulse;
     fx.edges.material.opacity = fx.fill ? 0.45 + 0.5 * pulse : 0.25 + 0.45 * pulse;
     const sp = (p * 0.55) % 1;
-    fx.scan.position.y = sp * fx.size.y;
-    fx.scan.material.opacity = (fx.fill ? 0.55 : 0.35) * Math.sin(sp * Math.PI);
+    fx.scan.position.y = Math.max(0.005, sp * fx.size.y);
+    const env = Math.sin(sp * Math.PI);
+    fx.scanFill.material.opacity = (fx.fill ? 0.16 : 0.1) * env;
+    fx.scanLine.material.opacity = 0.95 * env;
     (fx.label.material as THREE.SpriteMaterial).opacity = 0.7 + 0.3 * pulse;
   }
 
@@ -940,7 +952,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   const defaultPose = () => {
     const { width: W, depth: D, height: H } = scene.room;
     const target = new THREE.Vector3(0, H * 0.32, -D * 0.06);
-    const dir = new THREE.Vector3(0, 0.52, 1).normalize();
+    const dir = new THREE.Vector3(0, 0.44, 1).normalize();
     const cam = camera.clone();
     cam.updateProjectionMatrix();
     const T = 0.12;

@@ -359,6 +359,7 @@ export class Segmenter {
   handleFinal(text: string): void {
     const now = this.now();
     const f = tokenize(text);
+    this.recoverGaps(f, now);
     const k = this.align(f);
     const rem = f.slice(k);
     // Words we already committed beyond the end of this final belong to the next turn.

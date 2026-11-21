@@ -310,7 +310,7 @@ export function normalizeScene(raw: Scene): Scene {
   };
   const surfaces = (s.surfaces || {}) as Scene["surfaces"];
   const defaults: Record<SurfaceId, string> = {
-    wall_back: "#e8e2d8", wall_left: "#e4ddd2", wall_right: "#e4ddd2", floor: "#b07f52", ceiling: "#f3f1ec",
+    wall_back: "#e8e2d8", wall_left: "#e4ddd2", wall_right: "#e4ddd2", floor: "#a27b58", ceiling: "#f3f1ec",
   };
   for (const id of SURFACE_IDS) {
     const cur = surfaces[id];

@@ -295,7 +295,7 @@ const _hslB = { h: 0, s: 0, l: 0 };
  *  - opacity multiplies each part's own opacity; emissive (if set) is applied to every part.
  *  - color: the model keeps its authored multi-color look as long as obj.color equals the color the object had when
  *    the model arrived (`baseColor`). If the user later changes the color, every part is re-tinted: it takes the new
- *    hue, mostly the new saturation, and 60% of the way to the new lightness, so the parts stay distinguishable.
+ *    hue, mostly the new saturation, and 70% of the way to the new lightness, so the parts stay distinguishable.
  */
 export function modelTargets(records: MatRecord[], obj: SceneObject, baseColor: string | null): MatState[] {
   const m = obj.material || {};
@@ -306,7 +306,7 @@ export function modelTargets(records: MatRecord[], obj: SceneObject, baseColor: 
     const color = r.color.clone();
     if (tint) {
       r.color.getHSL(_hslA);
-      color.setHSL(_hslB.h, THREE.MathUtils.lerp(_hslA.s, _hslB.s, 0.85), THREE.MathUtils.lerp(_hslA.l, _hslB.l, 0.6));
+      color.setHSL(_hslB.h, THREE.MathUtils.lerp(_hslA.s, _hslB.s, 0.85), THREE.MathUtils.lerp(_hslA.l, _hslB.l, 0.7));
     }
     return {
       color,

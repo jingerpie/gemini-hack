@@ -75,7 +75,7 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
 const FONT = `"Inter", "Segoe UI", system-ui, -apple-system, sans-serif`;
 
 /** Floating pill label (e.g. "Building throne chair…"). World height ~= `worldH` meters. */
-export function makeLabel(text: string, worldH = 0.13): THREE.Sprite {
+export function makeLabel(text: string, worldH = 0.15): THREE.Sprite {
   const pad = 22, h = 64;
   const c = document.createElement("canvas");
   const g0 = c.getContext("2d")!;
