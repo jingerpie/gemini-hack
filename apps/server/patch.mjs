@@ -52,7 +52,7 @@ import {
 export const FAST_SEE = process.env.FAST_SEE !== "0"; // on by default: measured +0.15 s median, same results (test/out/space_after_see.log)
 
 export const PATCH_MODEL = process.env.PATCH_MODEL || "gemini-4-hydrogen";
-// Catalog first: the teammate's pre-built models are used whenever one fits; generation only for what it lacks.
+// Catalog only: every piece of furniture is a pre-built catalog model; nothing is generated from a description.
 // Shop MCP lookup on add (shop_query, options cards) is kept on disk but OFF unless SHOP_ON_ADD=1.
 export const SHOP_ON_ADD = process.env.SHOP_ON_ADD === "1";
 const CATALOG_BLOCK = CATALOG.catalogPromptBlock?.() || "";
@@ -66,7 +66,7 @@ export const CATALOG_KINDS = [
 ];
 const KINDS_TEXT = CATALOG_KINDS.length
 	? `SHOP KINDS (ready 3D models, instant): ${CATALOG_KINDS.join(", ")}.
-- For one of these kinds set catalog_kind and catalog_query (the user's own words for it: colour, material, style, size, "cheap"); still give position, rotation_y_deg and a sensible size. Anything else: no catalog_kind, a custom object as before.
+- For one of these kinds set catalog_kind and catalog_query (the user's own words for it: colour, material, style, size, "cheap"); still give position, rotation_y_deg and a sensible size. Anything else is not in the catalog: add nothing and say so (see FURNITURE AND DECOR).
 - Swaps ("a different one", "cheaper", "in grey", "under 300") = update_object with catalog_kind + catalog_query (+ max_price).
 - A plain "chair": at a desk = office-chair, at a dining table = dining-chair, otherwise armchair. "Lamp" = floor-lamp.`
 	: "";
@@ -847,6 +847,22 @@ export function buildOps(calls, scene) {
 			}
 			const cat =
 				catalogFor(a.catalog_id, a.name, dropped) || kindPick(a, null, say);
+			// Catalog only: a furniture object with no catalog match is never built from its description.
+			if (shape === "custom" && !cat) {
+				dropped.push(
+					`add_object ${id} (not in the catalog: nothing is generated)`,
+				);
+				if (!say.length)
+					say.push(
+						`!The catalog has no ${o.name.toLowerCase()}. It carries ${CATALOG_KINDS.slice(
+							0,
+							6,
+						)
+							.map((k) => k.replace(/-/g, " "))
+							.join(", ")} and more.`,
+					);
+				continue;
+			}
 			if (cat) {
 				const p = reanchor(o, cat.size, room);
 				Object.assign(o, cat, {
@@ -995,14 +1011,19 @@ export function buildOps(calls, scene) {
 					typeof ch.description === "string" && ch.description.trim()
 						? ch.description.trim()
 						: null;
+				// Catalog only: a new description never regenerates the model, and a primitive never becomes furniture.
 				if (
 					!cat &&
 					((newDesc && newDesc !== cur.description) || c.shape === "custom")
 				) {
-					c.description = newDesc || cur.description || c.name || cur.name;
-					c.status = "building";
-					if (cur.product && !swap) c.product = null; // a described look replaces the product: the model is generated again
-					if (cur.glb && !swap) c.glb = null;
+					delete c.shape;
+					dropped.push(
+						`update_object ${cur.id} (new look ignored: catalog items are not regenerated)`,
+					);
+					if (!say.length)
+						say.push(
+							"!I can't restyle catalog pieces. Ask for a different one, or one in another colour or material.",
+						);
 				}
 			}
 			const merged = { ...cur, ...c };
@@ -1460,7 +1481,9 @@ export async function orchestrate(
 		tools: declare([
 			...TOOLS,
 			...(withDesigner ? [ASK_DESIGNER] : []),
-			...(hasOptions ? [CHOOSE_OPTION, MORE_OPTIONS] : []),
+			...(hasOptions
+				? [CHOOSE_OPTION, ...(options.more ? [MORE_OPTIONS] : [])]
+				: []),
 		]),
 		toolConfig: { functionCallingConfig: { mode: "ANY" } },
 		generationConfig: { thinkingConfig: { thinkingLevel } },
@@ -1638,7 +1661,9 @@ function optionsText(o) {
 					`${start + i + 1}. ${p.title} | ${p.price} | ${p.store} | ${p.model || (p.model_glb ? "glb" : p.catalogId ? "catalog" : "photo")}${p.similar ? " | similar" : ""}`,
 			)
 			.join("\n") +
-		`\nRules: a card number or a description of one card -> choose_option(number). "More / others / next" -> more_options(). A refinement ("darker", "cheaper", "leather", "under $500") -> update_object on ${o.objectId} with a new shop_query (+ max_price).`
+		(o.products.every((p) => p.catalogId)
+			? `\nRules: a card number, "the second one", a card's name or price, or a description of one card -> choose_option(number). A refinement not on screen ("darker", "cheaper", "leather", "under $500") -> update_object on ${o.objectId} with catalog_kind + catalog_query (+ max_price).`
+			: `\nRules: a card number or a description of one card -> choose_option(number). "More / others / next" -> more_options(). A refinement ("darker", "cheaper", "leather", "under $500") -> update_object on ${o.objectId} with a new shop_query (+ max_price).`)
 	);
 }
 
@@ -1684,11 +1709,13 @@ export async function patch(
 				options.products[
 					n - 1 - (options.page || 0) * (options.pageSize || PAGE_SIZE)
 				];
-			if (!p)
+			if (!p?.catalogId)
 				return {
 					ops: [],
 					jobs: [],
-					say: `Card ${n} isn't on screen.`,
+					say: p
+						? "That one isn't in the catalog."
+						: `Card ${n} isn't on screen.`,
 					ms: Date.now() - t0,
 					model: PATCH_MODEL,
 					_dropped: [`choose_option ${n} not on screen`],

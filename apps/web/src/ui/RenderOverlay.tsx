@@ -102,7 +102,7 @@ export function RenderOverlay({
 			<div
 				className={cn(
 					glass,
-					"absolute inset-x-3 top-3 flex h-9.5 items-center gap-2.5 rounded-xl pr-1 pl-3.5",
+					"absolute inset-x-4 top-4 flex h-11 items-center gap-2.5 rounded-full pr-1.5 pl-4",
 				)}
 			>
 				<Dot agent="render" />
@@ -116,7 +116,7 @@ export function RenderOverlay({
 				</span>
 				<Button
 					variant="outline"
-					className="h-7.5 rounded-lg"
+					className="h-8"
 					onClick={onClose}
 					title="Close (Esc)"
 				>

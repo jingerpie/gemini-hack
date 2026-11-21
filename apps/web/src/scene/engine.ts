@@ -490,7 +490,7 @@ export function createEngine(
 	container.appendChild(canvas);
 
 	const s3 = new THREE.Scene();
-	const BG = new THREE.Color(0x15171c);
+	const BG = new THREE.Color(0xece8e2); // matches the light studio canvas around the viewport
 	s3.background = BG;
 	const pmrem = new THREE.PMREMGenerator(renderer);
 	const roomEnv = new RoomEnvironment();

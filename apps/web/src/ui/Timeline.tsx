@@ -10,13 +10,13 @@ import {
 import { Dot } from "./parts";
 
 export const HUES = {
-	patch: "#6f90bd",
-	asset: "#8270c0",
-	decal: "#4fa39a",
-	source: "#c9934a",
-	render: "#4fa39a", // the image model's colour
+	patch: "#366ad4",
+	asset: "#5433eb",
+	decal: "#0f8a7e",
+	source: "#b45309",
+	render: "#0f8a7e", // the image model's colour
 } as const;
-export const DESIGNER_HUE = "#c77fb4";
+export const DESIGNER_HUE = "#b03a8c";
 const MAX_LANES = 4; // lanes 0..3 are drawn; anything deeper is summarized as "+N more"
 
 const PX_PER_S = 21;
@@ -28,8 +28,8 @@ const FIRST_LANE = 16; // px below the baseline
 const LANE_GAP = 12;
 const HOLD_MS = 6000;
 const FADE_MS = 1500;
-const FAIL = "#d0605a";
-const NOCHANGE = "#6d7480";
+const FAIL = "#d92a0f";
+const NOCHANGE = "#9a9a9a";
 
 type Hit = { id: string; x0: number; x1: number; y: number };
 
@@ -99,16 +99,14 @@ export function Timeline({ manager }: { manager: TaskManager }) {
 					if (x > nowX + 0.5) break;
 					if (x < -40) continue;
 					const major = s % 30 === 0;
-					ctx.strokeStyle = major
-						? "rgba(255,255,255,0.16)"
-						: "rgba(255,255,255,0.08)";
+					ctx.strokeStyle = major ? "rgba(0,0,0,0.12)" : "rgba(0,0,0,0.06)";
 					ctx.lineWidth = 1;
 					ctx.beginPath();
 					ctx.moveTo(Math.round(x) + 0.5, BASE_Y - (major ? 5 : 3));
 					ctx.lineTo(Math.round(x) + 0.5, BASE_Y);
 					ctx.stroke();
 					if (s % 15 === 0 && x > 4 && nowX - x > 26) {
-						ctx.fillStyle = "rgba(255,255,255,0.26)";
+						ctx.fillStyle = "rgba(0,0,0,0.45)";
 						const m = Math.floor(s / 60);
 						const ss = String(s % 60).padStart(2, "0");
 						ctx.fillText(`${m}:${ss}`, x + 3, BASE_Y - 6);
@@ -118,13 +116,13 @@ export function Timeline({ manager }: { manager: TaskManager }) {
 
 			// baseline: solid up to now, faint dotted future
 			ctx.lineWidth = 1;
-			ctx.strokeStyle = "rgba(225,230,240,0.34)";
+			ctx.strokeStyle = "rgba(0,0,0,0.28)";
 			ctx.beginPath();
 			ctx.moveTo(0, BASE_Y + 0.5);
 			ctx.lineTo(nowX, BASE_Y + 0.5);
 			ctx.stroke();
 			ctx.setLineDash([1, 4]);
-			ctx.strokeStyle = "rgba(225,230,240,0.16)";
+			ctx.strokeStyle = "rgba(0,0,0,0.12)";
 			ctx.beginPath();
 			ctx.moveTo(nowX, BASE_Y + 0.5);
 			ctx.lineTo(w, BASE_Y + 0.5);
@@ -246,7 +244,7 @@ export function Timeline({ manager }: { manager: TaskManager }) {
 				} else {
 					ctx.lineTo(x1, y);
 					ctx.stroke();
-					cross(ctx, x1 + 3.5, y, failed ? FAIL : "rgba(200,205,215,0.7)", 3);
+					cross(ctx, x1 + 3.5, y, failed ? FAIL : "rgba(0,0,0,0.45)", 3);
 				}
 				ctx.globalAlpha = 1;
 				hits.push({ id: k.id, x0, x1: x1 + 6, y });
@@ -257,7 +255,7 @@ export function Timeline({ manager }: { manager: TaskManager }) {
 				if (overflow) parts.push(`+${overflow} more running`);
 				if (queued) parts.push(`${queued} queued`);
 				ctx.globalAlpha = 0.8;
-				ctx.fillStyle = "rgba(225,230,240,0.6)";
+				ctx.fillStyle = "rgba(0,0,0,0.6)";
 				ctx.font = "500 10px Inter, system-ui, sans-serif";
 				ctx.textBaseline = "middle";
 				const txt = parts.join(" · ");
@@ -274,19 +272,19 @@ export function Timeline({ manager }: { manager: TaskManager }) {
 			// now marker
 			if (start != null) {
 				const g = ctx.createRadialGradient(nowX, BASE_Y, 0, nowX, BASE_Y, 9);
-				g.addColorStop(0, "rgba(160,190,240,0.55)");
-				g.addColorStop(1, "rgba(160,190,240,0)");
+				g.addColorStop(0, "rgba(84,51,235,0.35)");
+				g.addColorStop(1, "rgba(84,51,235,0)");
 				ctx.fillStyle = g;
 				ctx.beginPath();
 				ctx.arc(nowX, BASE_Y, 9, 0, Math.PI * 2);
 				ctx.fill();
 			}
-			ctx.fillStyle = start == null ? "rgba(225,230,240,0.45)" : "#dfe7f5";
+			ctx.fillStyle = start == null ? "rgba(0,0,0,0.35)" : "#5433eb";
 			ctx.beginPath();
 			ctx.arc(nowX, BASE_Y + 0.5, 2.6, 0, Math.PI * 2);
 			ctx.fill();
 			if (start == null) {
-				ctx.fillStyle = "rgba(225,230,240,0.28)";
+				ctx.fillStyle = "rgba(0,0,0,0.45)";
 				ctx.font = "500 10.5px Inter, system-ui, sans-serif";
 				ctx.fillText(
 					"work appears here as you talk",
@@ -334,7 +332,7 @@ export function Timeline({ manager }: { manager: TaskManager }) {
 	return (
 		// biome-ignore lint/a11y: canvas hover/click shortcut; every task is also listed (and focusable) in the sidebar
 		<div
-			className="border-border relative h-22.5 overflow-hidden rounded-xl border bg-linear-to-b from-white/[0.018] to-transparent"
+			className="bg-muted/50 relative h-22.5 overflow-hidden rounded-2xl"
 			ref={wrapRef}
 			onMouseMove={(e) => {
 				const r = e.currentTarget.getBoundingClientRect();

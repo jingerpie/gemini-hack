@@ -2,7 +2,7 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
-import { assetConfig, buildAsset } from "./asset.mjs";
+import { assetConfig } from "./asset.mjs";
 import { note, readJson, sse } from "./http.mjs";
 import { stats as geminiStats, scrub } from "./lib.mjs";
 import {
@@ -111,14 +111,12 @@ app.post("/api/patch", async (c) => {
 
 app.post("/api/asset", async (c) => {
 	const body = await readJson(c);
-	if (!body.description && !body.name && !body.catalogId)
-		return c.json({ error: "description required" }, 400);
-	const mode = pickMode(c.req.query("via"));
-	const agentModelQ = c.req.query("agentModel") || "";
-	const agentModel = /^gemini-[\w.-]+$/.test(agentModelQ)
-		? agentModelQ
-		: undefined;
-	return sse(c, async ({ send, signal }) => {
+	if (!body.catalogId)
+		return c.json(
+			{ error: "catalogId required: only catalog items are placed" },
+			400,
+		);
+	return sse(c, async ({ send }) => {
 		// Catalog product: its pre-built model at once, no model call.
 		const catEv = body.catalogId
 			? CATALOG.catalogAssetEvent?.(body.catalogId)
@@ -131,24 +129,14 @@ app.post("/api/asset", async (c) => {
 			);
 			return;
 		}
-		let last = null;
-		try {
-			last = await buildAsset(body, {
-				send: (ev) => {
-					last = ev;
-					send(ev);
-				},
-				mode,
-				signal,
-				agentModel,
-			});
-		} catch (e) {
-			send({ type: "error", message: scrub(e.message || e) });
-			last = { type: "error" };
-		}
+		// Catalog only: nothing is generated from a description.
+		send({
+			type: "error",
+			message: "Only catalog items can be placed; nothing is generated.",
+		});
 		note(
 			c,
-			`${body.objectId || ""} "${String(body.name || "").slice(0, 40)}" mode=${mode} -> ${last ? (last.type === "done" ? `done via ${last.via} (${last.ms}ms, ${last.code.length} chars)` : `${last.type}${last.message ? `: ${last.message.slice(0, 200)}` : ""}`) : "aborted by client"}`,
+			`${body.objectId || ""} "${String(body.name || "").slice(0, 40)}" refused: not a catalog item`,
 		);
 	});
 });

@@ -1,3 +1,4 @@
+import { Undo2 } from "lucide-react";
 import {
 	useCallback,
 	useEffect,
@@ -8,12 +9,13 @@ import {
 } from "react";
 import { TaskManager } from "./lib/taskManager";
 import type { Engine, Voice, VoiceHandlers, VoiceState } from "./types";
-import { Dock } from "./ui/Dock";
-import { Hud } from "./ui/Hud";
-import { glass } from "./ui/parts";
+import { DebugPanel } from "./ui/DebugPanel";
+import { Header } from "./ui/Hud";
+import { glass, Hint } from "./ui/parts";
+import { Rail, railButton } from "./ui/Rail";
 import { RenderOverlay } from "./ui/RenderOverlay";
 import { Sidebar } from "./ui/Sidebar";
-import { Timeline } from "./ui/Timeline";
+import { LiveCaption, TalkButton } from "./ui/Voice";
 
 // ?mock=1 → mock engine + api + voice.  ?mock=api → real 3D engine, mock api + voice.  (none) → all real.
 const MOCK_MODE = new URLSearchParams(location.search).get("mock");
@@ -220,15 +222,42 @@ export default function App() {
 	}, [state.patchMs, state.tasks]);
 
 	return (
-		<div className="grid h-screen w-screen grid-cols-[minmax(0,72fr)_minmax(330px,28fr)] overflow-hidden">
-			<main className="flex min-h-0 min-w-0 flex-col gap-2 py-3 pl-3">
-				<div className="border-border relative min-h-0 flex-1 overflow-hidden rounded-2xl border bg-[radial-gradient(120%_90%_at_50%_40%,#1a1c21_0%,#0f1013_70%)] shadow-[inset_0_30px_60px_-30px_rgb(0_0_0/0.6)]">
+		<div className="flex min-h-screen w-full flex-wrap items-start gap-4 p-4">
+			<Rail
+				extra={
+					<Hint label="Undo (Ctrl+Z)" side="right">
+						<button
+							type="button"
+							aria-label="Undo"
+							className={railButton}
+							onClick={() => manager.undo()}
+						>
+							<Undo2 />
+						</button>
+					</Hint>
+				}
+			/>
+			<main className="flex min-w-0 flex-[999_1_560px] flex-col gap-3">
+				<Header
+					chip={chip}
+					chipDetail={voiceDetail}
+					mock={MOCK}
+					onNewRoom={() => manager.newRoom()}
+					onRender={() => manager.render()}
+					rendering={state.tasks.some(
+						(t) => t.kind === "render" && t.status === "running",
+					)}
+				/>
+				<section
+					aria-label="Room"
+					className="relative h-[clamp(360px,58vh,640px)] overflow-hidden rounded-[28px] bg-[#ece8e2] shadow-[var(--shadow-soft)]"
+				>
 					<div className="absolute inset-0" ref={viewportRef} />
 					{!engineReady && (
 						<div className="text-muted-foreground pointer-events-none absolute inset-0 grid place-content-center gap-1.5 text-center">
 							{engineError ? (
 								<>
-									<b className="text-bad font-medium">
+									<b className="text-bad font-semibold">
 										3D engine failed to load
 									</b>
 									<span>{engineError}</span>
@@ -238,51 +267,48 @@ export default function App() {
 							)}
 						</div>
 					)}
-					<Hud
-						chip={chip}
-						chipDetail={voiceDetail}
-						mock={MOCK}
-						verifyEnabled={state.verifyEnabled}
-						onVerify={(on) => manager.setVerifyEnabled(on)}
-						onUndo={() => manager.undo()}
-						shopEnabled={state.shopEnabled}
-						onShop={(on) => manager.setShopEnabled(on)}
-						onNewRoom={() => manager.newRoom()}
-						onRender={() => manager.render()}
-						rendering={state.tasks.some(
-							(t) => t.kind === "render" && t.status === "running",
-						)}
-						stats={stats}
-					/>
 					{hover && engineReady && !state.render && (
 						<div
-							className={`${glass} animate-in fade-in pointer-events-none absolute bottom-3 left-3 inline-flex h-6.5 items-center gap-2 rounded-full px-3 text-xs duration-150`}
+							className={`${glass} animate-in fade-in pointer-events-none absolute bottom-4 left-4 inline-flex h-8 items-center gap-2 rounded-full px-3.5 text-xs duration-150`}
 							aria-live="off"
 						>
-							<span className="text-muted-foreground text-[10px] tracking-[0.08em] uppercase">
-								pointing at
-							</span>
-							<span className="text-foreground max-w-65 truncate font-medium">
+							<span className="text-muted-foreground">Pointing at</span>
+							<span className="text-foreground max-w-65 truncate font-semibold">
 								{hover.name}
 							</span>
+						</div>
+					)}
+					{!state.render && (
+						<div className="absolute bottom-5 left-1/2 -translate-x-1/2">
+							<TalkButton
+								chip={chip}
+								listening={listening}
+								levelRef={levelRef}
+								onToggle={toggleVoice}
+							/>
 						</div>
 					)}
 					{state.render && (
 						<RenderOverlay view={state.render} onClose={closeRender} />
 					)}
-				</div>
-				<section className="flex flex-none flex-col gap-1">
-					<Timeline manager={manager} />
-					<Dock
-						chip={chip}
-						listening={listening}
-						levelRef={levelRef}
-						onToggle={toggleVoice}
-						onSend={(text) => manager.utterance(text)}
-					/>
 				</section>
+				<LiveCaption
+					state={state}
+					chip={chip}
+					listening={listening}
+					levelRef={levelRef}
+					onSend={(text) => manager.utterance(text)}
+				/>
+				<DebugPanel
+					state={state}
+					manager={manager}
+					stats={stats}
+					onSend={(text) => manager.utterance(text)}
+				/>
 			</main>
-			<Sidebar state={state} manager={manager} />
+			<div className="flex min-w-0 flex-[1_1_340px] self-stretch lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-w-105">
+				<Sidebar state={state} manager={manager} />
+			</div>
 		</div>
 	);
 }

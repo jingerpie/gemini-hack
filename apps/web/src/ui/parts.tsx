@@ -49,7 +49,10 @@ export function Dot({
 
 /** Frosted surface used by controls that float over the 3D view. */
 export const glass =
-	"bg-background/60 backdrop-blur-md backdrop-saturate-125 border border-border";
+	"bg-white/75 backdrop-blur-lg backdrop-saturate-125 shadow-[var(--shadow-soft)]";
+
+/** White card lifted off the off-white canvas by a soft shadow (no border). */
+export const surface = "bg-card rounded-3xl shadow-[var(--shadow-soft)]";
 
 /** Wrap a control in a tooltip. The child must accept a ref and props (a Button or native element). */
 export function Hint({

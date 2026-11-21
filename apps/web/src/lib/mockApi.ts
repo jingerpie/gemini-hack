@@ -1,6 +1,7 @@
 // Offline stand-in for the studio server (`?mock=1`). A tiny keyword rule engine fakes /api/patch,
 // and asset/decal/verify return plausible results after realistic delays. Every delay honours the AbortSignal.
 
+import { entries as catalogEntries, fmtPrice } from "../catalog/data";
 import type {
 	AssetEvent,
 	AssetRequest,
@@ -11,6 +12,7 @@ import type {
 	Op,
 	PatchRequest,
 	PatchResponse,
+	Product,
 	Scene,
 	SceneObject,
 	SourceEvent,
@@ -814,34 +816,11 @@ export function createMockApi(): Api {
 				onEvent({ type: "status", text: s });
 			}
 			await sleep(rand(800, 1500), signal);
-			const q = encodeURIComponent(req.name);
 			onEvent({
 				type: "done",
 				ms: Date.now() - start,
 				model: "mock-antigravity",
-				products: [
-					{
-						title: `${req.name} — handcrafted, solid wood with velvet upholstery`,
-						price: "$1,249.00",
-						store: "Wayfair",
-						url: `https://www.wayfair.com/keyword.php?keyword=${q}`,
-						image_url: "",
-					},
-					{
-						title: `Vintage-style ${req.name}`,
-						price: "£890",
-						store: "Etsy",
-						url: `https://www.etsy.com/search?q=${q}`,
-						image_url: "",
-					},
-					{
-						title: `Modern ${req.name}`,
-						price: "Call for price",
-						store: "Article",
-						url: "javascript:alert(1)",
-						image_url: "",
-					},
-				],
+				products: catalogMatches(req.name),
 			});
 		},
 
@@ -861,4 +840,30 @@ export function createMockApi(): Api {
 			return { results, ms: Date.now() - start, model: "mock-decisions" };
 		},
 	};
+}
+
+/** Mock shopping results: real listings from the pre-built catalog whose kind matches the object's name. */
+function catalogMatches(name: string): Product[] {
+	const words = name.toLowerCase().match(/[a-z]+/g) ?? [];
+	const stem = (w: string) => w.replace(/(es|s)$/, "");
+	const score = (kind: string) =>
+		kind
+			.split("-")
+			.filter((part) =>
+				words.some((w) => stem(w) === stem(part) || w.includes(part)),
+			).length;
+	let hits = catalogEntries.filter((e) => score(e.kind) > 0);
+	if (!hits.length) hits = catalogEntries;
+	const start = Math.floor(Math.random() * hits.length);
+	return Array.from({ length: Math.min(4, hits.length) }, (_, i) => {
+		const e = hits[(start + i) % hits.length];
+		return {
+			title: e.name,
+			price: fmtPrice(e),
+			store: e.vendor,
+			url: "",
+			image_url: e.img ? new URL(e.img, location.href).href : "",
+			similar: true,
+		};
+	});
 }
