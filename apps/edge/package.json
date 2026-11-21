@@ -1,0 +1,16 @@
+{
+	"name": "edge",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"deploy": "bun run --cwd ../web build && wrangler deploy",
+		"cf-typegen": "wrangler types"
+	},
+	"dependencies": {
+		"@cloudflare/containers": "^0.3.7"
+	},
+	"devDependencies": {
+		"wrangler": "^4.166.0"
+	}
+}

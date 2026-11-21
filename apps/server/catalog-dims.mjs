@@ -20,21 +20,78 @@ const TOL = +arg("--tol", 0.05);
 
 const toM = (n, unit) =>
 	n *
-	({ mm: 0.001, cm: 0.01, m: 1, in: 0.0254, inch: 0.0254, inches: 0.0254 }[
-		unit.toLowerCase()
-	] ?? 0.01);
+	({
+		mm: 0.001,
+		cm: 0.01,
+		m: 1,
+		in: 0.0254,
+		inch: 0.0254,
+		inches: 0.0254,
+		ft: 0.3048,
+		feet: 0.3048,
+	}[unit.toLowerCase()] ?? 0.01);
 const nums = (s) => [...s.matchAll(/(\d+(?:\.\d+)?)/g)].map((m) => +m[1]);
 const unitOf = (s) =>
-	(s.match(/\b(mm|cm|m|inches|inch|in)\b/i) || [undefined, "cm"])[1];
+	(s.match(/\b(mm|cm|m|inches|inch|in|feet|ft)\b/i) || [undefined, "cm"])[1];
 
 /** Parse one size option value into target dimensions in meters. Front faces +Z, so width/length run along x. */
+// Kinds whose listing size does not describe the model's bounding box (string length, nursery pot, unfolded throw...).
+const NO_LISTING = new Set([
+	"string-lights",
+	"potted-plant",
+	"throw-blanket",
+	"speaker",
+	"turntable",
+	"christmas-tree",
+]);
+// Flat things that stand or hang upright: a two-number size is width × height, a diameter is width = height.
+const UPRIGHT = new Set([
+	"wall-art",
+	"mirror",
+	"curtain",
+	"throw-pillow",
+	"wall-clock",
+	"wreath",
+	"television",
+	"computer-monitor",
+]);
+
 export function parseSize(option, value, kind) {
 	const o = option.toLowerCase();
+	if (
+		NO_LISTING.has(kind) ||
+		/shade|driver|cable|capacity|suspension|cord|bulb|nursery|pot diameter/.test(
+			o,
+		)
+	)
+		return null;
+	// "L13 (304 × 215 × 16 mm)" -> the bracket part; "120 × 180 cm (standard)" / "(W × D × H)" -> drop the brackets.
+	const br = value.match(/\(([^)]*\d[^)]*)\)/);
+	value =
+		br &&
+		!/\d\s*(mm|cm|m|in|inch|inches|ft|"|×|x)/i.test(value.replace(br[0], ""))
+			? br[1]
+			: value.replace(/\([^)]*\)/g, "");
 	const u = unitOf(value);
 	const n = nums(value).map((v) => toM(v, u));
 	if (!n.length) return null;
+	if (UPRIGHT.has(kind)) {
+		if (/diameter/.test(o) || /diameter/i.test(value))
+			return { x: n[0], y: n[0] };
+		if (n.length >= 2 && /×|x/.test(value)) return { x: n[0], y: n[1] };
+		if (kind === "curtain" && /length|drop|height/.test(o)) return { y: n[0] };
+		if (/^height/.test(o)) return { y: n[0] };
+		if (/width/.test(o)) return { x: n[0] };
+		return null;
+	}
+	if (kind === "pendant-light" && /length|drop/.test(o)) return null;
+	if (n.length >= 3 && /×|x/.test(value))
+		return kind === "laptop"
+			? { x: n[0], z: n[1] }
+			: { x: n[0], z: n[1], y: n[2] }; // L × W × H
 	if (/seat height/.test(o)) return { seatHeight: n[0] }; // ranges: lowest setting
 	if (/mattress/.test(o)) return { mattress: { x: n[0], z: n[1] } };
+	if (/opening/.test(o) && n.length >= 2) return { x: n[0], y: n[1] }; // door opening: width × height
 	if (/diameter/.test(o) || /diameter/i.test(value)) {
 		const t = { x: n[0], z: n[0] };
 		if (/high/i.test(value) && n[1]) t.y = n[1];

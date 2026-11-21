@@ -1,8 +1,22 @@
 // POST /api/patch: utterance -> gemini-4-hydrogen function calls -> sanitized ops + background jobs.
 import fs from "node:fs";
 import path from "node:path";
+import {
+	fitScale,
+	followParents,
+	inferMount,
+	MOUNTS,
+	resolveMount,
+} from "@gemini-hack/placement";
+import { coverage } from "@gemini-hack/placement/supports";
 import { generateContent, SERVER_DIR } from "./lib.mjs";
-import { boxesOverlap, footprint, isFlat, spaceBlock } from "./space.mjs";
+import {
+	boxesOverlap,
+	footprint,
+	isFlat,
+	setSupportLookup,
+	spaceBlock,
+} from "./space.mjs";
 
 // Shop MCP and the pre-built catalog are optional at startup (their files are written by other agents): a half-written
 // file must not stop the server, so they are imported dynamically and every use checks the export exists.
@@ -15,6 +29,7 @@ const CATALOG = await import("./catalog.mjs").catch((e) => {
 	return {};
 });
 const catalogObject = (id) => CATALOG.catalogObject?.(id) || null;
+setSupportLookup((id, size) => CATALOG.catalogSupports?.(id, size) || []);
 const pickCatalog = (q, o) => CATALOG.pickCatalog?.(q, o) || [];
 export const shopStats = {
 	hits: 0,
@@ -115,6 +130,22 @@ const objectProps = {
 	parent: {
 		type: "string",
 		description: 'id of the object this rests on, or "" for the floor',
+	},
+	mount: {
+		type: "string",
+		enum: ["", ...MOUNTS],
+		description:
+			'wall_back / wall_left / wall_right = hangs on that wall (art, mirror, clock, curtain, wreath, string lights, wall TV); ceiling = hangs from the ceiling (pendant light, chandelier). The server pins it to that wall/ceiling and sets its rotation. "" or omitted = stands on the floor or on its parent.',
+	},
+	support: {
+		type: "string",
+		description:
+			'with parent: which surface of the parent it rests on, by the name listed in SPACE (e.g. "seat", "top", "shelf 3", "mattress"); the server sets the exact height. Omit to use the surface nearest position.y.',
+	},
+	light_on: {
+		type: "boolean",
+		description:
+			"false switches the object's light and glowing parts off (lamp, candle, screen, string lights); true switches it back on. Omit otherwise.",
 	},
 	catalog_id: {
 		type: "string",
@@ -405,6 +436,154 @@ function normRoom(scene) {
 	};
 }
 
+// Puts an object that rests on a catalog product onto one of that product's real surfaces (seat, shelf, top...) computed
+// from its model: the named `support`, else the surface nearest the requested height that has room above for it. The
+// footprint is kept inside that surface. Products without known surfaces keep the old rule (on the parent's top).
+const DEGR = Math.PI / 180;
+// A catalog model's size box is made to equal what the renderer draws (uniform fit + capped stretch), so support
+// heights, children and wall/ceiling contact line up with the visible model after a resize.
+function drawnSize(o) {
+	const raw = o.product?.catalogId && CATALOG.catalogRaw?.(o.product.catalogId);
+	if (!raw) return o.size;
+	const k = fitScale(raw, o.size);
+	return { x: r2(raw.x * k.x), y: r2(raw.y * k.y), z: r2(raw.z * k.z) };
+}
+
+// Returns false (and leaves o untouched) when no surface of the parent can hold it.
+function snapToSupport(o, objs, supportName, notes) {
+	const par = o.parent && objs.get(o.parent);
+	if (!par) return null;
+	const list = par.product?.catalogId
+		? CATALOG.catalogSupports?.(par.product.catalogId, par.size) || []
+		: [];
+	// three.js yaw: local (x,z) -> world (x cos + z sin, -x sin + z cos); world -> local is the transpose
+	const th = (par.rotation_y_deg || 0) * DEGR;
+	const c = Math.cos(th);
+	const sn = Math.sin(th);
+	const dx = o.position.x - par.position.x;
+	const dz = o.position.z - par.position.z;
+	let lx = dx * c - dz * sn;
+	let lz = dx * sn + dz * c;
+	const want = o.position.y - par.position.y;
+	const rel = ((o.rotation_y_deg || 0) - (par.rotation_y_deg || 0)) * DEGR;
+	const rc = Math.abs(Math.cos(rel));
+	const rs = Math.abs(Math.sin(rel));
+	const hx = (o.size.x * rc + o.size.z * rs) / 2;
+	const hz = (o.size.x * rs + o.size.z * rc) / 2;
+	let surf = null;
+	if (list.length) {
+		// fits = enough free height above (full height + 1 cm) and a big enough footprint (5% overhang allowed)
+		const fits = list.filter(
+			(p) =>
+				(p.clear == null || p.clear >= o.size.y + 0.01) &&
+				p.x1 - p.x0 >= 2 * hx * 0.95 &&
+				p.z1 - p.z0 >= 2 * hz * 0.95,
+		);
+		const named = supportName
+			? list.filter(
+					(p) =>
+						p.name.toLowerCase() === String(supportName).toLowerCase().trim(),
+				)
+			: [];
+		const namedFit = named.filter((p) => fits.includes(p));
+		if (named.length && !namedFit.length)
+			notes?.push(
+				`adjusted: ${o.id} does not fit on ${par.id} ${supportName} (too tall or too wide), put on another surface`,
+			);
+		const cands = namedFit.length ? namedFit : fits;
+		if (!cands.length) {
+			notes?.push(`adjusted: ${o.id} does not fit on any surface of ${par.id}`);
+			return false;
+		}
+		const out = (p) =>
+			Math.hypot(
+				Math.max(p.x0 - lx, 0, lx - p.x1),
+				Math.max(p.z0 - lz, 0, lz - p.z1),
+			);
+		surf = cands
+			.slice()
+			.sort(
+				(a, b) =>
+					Math.abs(a.y - want) + out(a) - (Math.abs(b.y - want) + out(b)),
+			)[0];
+	}
+	// unknown surfaces (a generated model, not a catalog product): estimate. Seating and beds get a seat/mattress about
+	// half their height, set forward of the backrest; soft things (pillows, throws) go there. Everything else: on top.
+	if (!surf) {
+		const W = par.size.x / 2;
+		const D = par.size.z / 2;
+		const H = par.size.y;
+		const what = `${par.name || ""} ${par.description || ""}`.toLowerCase();
+		const item = `${o.name || ""} ${o.description || ""}`.toLowerCase();
+		const seating =
+			/\b(sofa|couch|settee|loveseat|sectional|armchair|chair|bench|chaise|daybed)\b/.test(
+				what,
+			);
+		const bed = /\bbed\b/.test(what) && !seating;
+		const soft = /\b(pillow|cushion|throw|blanket|plush|teddy)\b/.test(item);
+		if (
+			(seating || bed) &&
+			(soft ||
+				supportName === "seat" ||
+				supportName === "mattress" ||
+				want < H * 0.75)
+		)
+			surf = seating
+				? {
+						name: "seat",
+						y: r2(Math.min(0.5, Math.max(0.38, H * 0.52), H * 0.8)),
+						x0: -W * 0.8,
+						x1: W * 0.8,
+						z0: -D * 0.55,
+						z1: D * 0.9,
+					}
+				: {
+						name: "mattress",
+						y: r2(Math.min(0.65, Math.max(0.35, H * 0.55), H * 0.8)),
+						x0: -W * 0.95,
+						x1: W * 0.95,
+						z0: -D * 0.75,
+						z1: D * 0.95,
+					};
+		else surf = { name: "top", y: H, x0: -W, x1: W, z0: -D, z1: D };
+		if (
+			surf.x1 - surf.x0 < 2 * hx * 0.95 ||
+			surf.z1 - surf.z0 < 2 * hz * 0.95
+		) {
+			notes?.push(`adjusted: ${o.id} is too big for ${par.id}`);
+			return false;
+		}
+	}
+	const fit1 = (v, a, b, h) =>
+		b - a <= 2 * h ? (a + b) / 2 : clamp(v, a + h, b - h);
+	lx = fit1(lx, surf.x0, surf.x1, hx);
+	lz = fit1(lz, surf.z0, surf.z1, hz);
+	// rings, slats and round tops: move to the nearest spot that is at least 70% on solid surface
+	if (surf.mask && coverage(surf, lx, lz, hx, hz) < 0.7) {
+		let best = null;
+		for (let x = surf.x0 + hx; x <= surf.x1 - hx + 1e-6; x += 0.04)
+			for (let z = surf.z0 + hz; z <= surf.z1 - hz + 1e-6; z += 0.04) {
+				if (coverage(surf, x, z, hx, hz) < 0.7) continue;
+				const d = Math.hypot(x - lx, z - lz);
+				if (!best || d < best.d) best = { x, z, d };
+			}
+		if (!best) {
+			notes?.push(
+				`adjusted: ${o.id} has no solid spot on ${par.id} ${surf.name}`,
+			);
+			return false;
+		}
+		lx = best.x;
+		lz = best.z;
+	}
+	o.position = {
+		x: r2(par.position.x + lx * c + lz * sn),
+		y: r2(par.position.y + surf.y),
+		z: r2(par.position.z - lx * sn + lz * c),
+	};
+	return true;
+}
+
 // When a catalog size replaces the size the model planned with, keep the object against the same wall(s).
 function reanchor(o, size, room) {
 	const hx = room.width / 2;
@@ -627,6 +806,21 @@ export function buildOps(calls, scene) {
 		return id;
 	};
 
+	// Placements this reply sets explicitly (absolute numbers): they do not also inherit a support's move (same rule as the client).
+	const exPos = new Set();
+	const exRot = new Set();
+	const followed = new Set(); // children the server moved along with their support (their final transform is sent at the end)
+	for (const { name, args: a = {} } of calls)
+		if (
+			name === "update_object" &&
+			a.changes &&
+			typeof a.changes === "object"
+		) {
+			const ch = a.changes;
+			const all = "parent" in ch || "mount" in ch;
+			if (all || "position" in ch) exPos.add(a.id);
+			if (all || "rotation_y_deg" in ch) exRot.add(a.id);
+		}
 	for (const { name, args: a = {} } of calls) {
 		if (name === "say") {
 			if (a.text) say.push(String(a.text));
@@ -664,6 +858,27 @@ export function buildOps(calls, scene) {
 				});
 				rotFix(o);
 			}
+			if (a.light_on === false) o.light_on = false;
+			const mount = MOUNTS.includes(a.mount)
+				? a.mount
+				: !o.parent && cat
+					? inferMount(cat.product.catalogId?.split("/")[0], o, room)
+					: undefined;
+			if (mount) {
+				o.mount = mount;
+				resolveMount(o, room);
+			} else if (o.parent && !snapToSupport(o, objs, a.support, dropped)) {
+				// no room on it: stand on the floor beside it
+				const par = objs.get(o.parent);
+				o.parent = "";
+				o.position = {
+					x: r2(par.position.x + (par.size.x + o.size.x) / 2 + 0.1),
+					y: 0,
+					z: par.position.z,
+				};
+			}
+			exPos.add(id);
+			exRot.add(id);
 			if (
 				SHOP_ON_ADD &&
 				!cat &&
@@ -718,6 +933,16 @@ export function buildOps(calls, scene) {
 					(ch.parent === "" || objs.has(ch.parent)) && ch.parent !== cur.id
 						? ch.parent
 						: cur.parent;
+			if (typeof ch.light_on === "boolean") c.light_on = ch.light_on;
+			if (MOUNTS.includes(ch.mount)) {
+				c.mount = ch.mount;
+				c.parent = "";
+			} else if (
+				ch.mount === "" ||
+				(typeof ch.parent === "string" && ch.parent)
+			) {
+				if (cur.mount) c.mount = "";
+			}
 			const swap =
 				SHOP_ON_ADD &&
 				typeof ch.shop_query === "string" &&
@@ -781,6 +1006,55 @@ export function buildOps(calls, scene) {
 				}
 			}
 			const merged = { ...cur, ...c };
+			if (merged.mount === "") delete merged.mount;
+			if (c.size && merged.product?.catalogId)
+				merged.size = c.size = drawnSize(merged); // the size box = what is drawn
+			if (!merged.mount && !c.mount && c.product?.catalogId && !cur.mount) {
+				const m = inferMount(c.product.catalogId.split("/")[0], merged, room);
+				if (m) merged.mount = c.mount = m;
+			}
+			if (
+				merged.mount &&
+				(c.size || c.position || c.rotation_y_deg !== undefined || c.mount)
+			) {
+				const p0 = JSON.stringify(merged.position);
+				const r0 = merged.rotation_y_deg;
+				resolveMount(merged, room);
+				if (JSON.stringify(merged.position) !== p0)
+					c.position = merged.position;
+				if (merged.rotation_y_deg !== r0)
+					c.rotation_y_deg = merged.rotation_y_deg;
+			}
+			if (
+				!merged.mount &&
+				merged.parent &&
+				(c.size ||
+					c.position ||
+					c.rotation_y_deg !== undefined ||
+					c.parent !== undefined ||
+					ch.support)
+			) {
+				const p0 = JSON.stringify(merged.position);
+				if (snapToSupport(merged, objs, ch.support, dropped)) {
+					if (JSON.stringify(merged.position) !== p0)
+						c.position = merged.position;
+				} else {
+					// keep it where it was
+					for (const k of [
+						"position",
+						"parent",
+						"size",
+						"rotation_y_deg",
+						"mount",
+					]) {
+						delete c[k];
+						if (k in cur) merged[k] = cur[k];
+						else delete merged[k];
+					}
+					exPos.delete(cur.id);
+					exRot.delete(cur.id);
+				}
+			}
 			if (c.size || c.position || c.rotation_y_deg !== undefined) {
 				const before = JSON.stringify(merged.position);
 				fitObject(merged, room);
@@ -792,8 +1066,28 @@ export function buildOps(calls, scene) {
 				dropped.push(`update_object ${a.id} (no changes)`);
 				continue;
 			}
+			const prevObjs = [...objs.values()].map((x) => ({
+				...x,
+				position: { ...x.position },
+				size: { ...x.size },
+			}));
 			objs.set(cur.id, merged);
 			ops.push({ op: "update", id: cur.id, changes: c });
+			followParents(
+				{ objects: prevObjs },
+				{ objects: [...objs.values()] },
+				{ pos: exPos, rot: exRot },
+			); // working copy mirrors the client
+			for (const b of prevObjs) {
+				const x = objs.get(b.id);
+				if (
+					x &&
+					x.id !== cur.id &&
+					(JSON.stringify(x.position) !== JSON.stringify(b.position) ||
+						x.rotation_y_deg !== b.rotation_y_deg)
+				)
+					followed.add(x.id);
+			}
 			if (
 				c.position ||
 				c.size ||
@@ -808,6 +1102,23 @@ export function buildOps(calls, scene) {
 				dropped.push(`remove_object ${a.id}`);
 				continue;
 			}
+			{
+				const gone = new Set([a.id]);
+				let grew = true;
+				while (grew) {
+					grew = false;
+					for (const x of objs.values())
+						if (x.parent && gone.has(x.parent) && !gone.has(x.id)) {
+							gone.add(x.id);
+							grew = true;
+						}
+				}
+				for (const id of gone)
+					if (id !== a.id) {
+						objs.delete(id);
+						touched.delete(id);
+					}
+			} // the client removes what rested on it
 			objs.delete(a.id);
 			ops.push({ op: "remove", id: a.id });
 			continue;
@@ -899,10 +1210,19 @@ export function buildOps(calls, scene) {
 	// nearest free position (<= 0.8 m, along their wall if against one). Untouched objects never move.
 	for (const id of touched) {
 		const o = objs.get(id);
-		if (!o || isFlat(o) || [...objs.values()].some((b) => b.parent === id))
+		if (
+			!o ||
+			o.mount ||
+			isFlat(o) ||
+			[...objs.values()].some((b) => b.parent === id)
+		)
 			continue;
 		const others = [...objs.values()].filter(
-			(b) => b.id !== id && !isFlat(b) && (b.parent || "") === (o.parent || ""),
+			(b) =>
+				b.id !== id &&
+				!b.mount &&
+				!isFlat(b) &&
+				(b.parent || "") === (o.parent || ""),
 		);
 		const hit = (p, tol = 0.02) => {
 			const f = footprint({ ...o, position: p });
@@ -926,7 +1246,12 @@ export function buildOps(calls, scene) {
 				["z", -1],
 			]) {
 				if ((ax === "x" && lockX) || (ax === "z" && lockZ)) continue;
-				const p = { ...o.position, [ax]: r2(o.position[ax] + sg * d) };
+				let p = { ...o.position, [ax]: r2(o.position[ax] + sg * d) };
+				if (o.parent) {
+					const t = { ...o, position: p };
+					if (!snapToSupport(t, objs)) continue;
+					p = t.position;
+				} // test where it would really land
 				const f = footprint({ ...o, position: p });
 				if (
 					f.x0 < -hx - 1e-6 ||
@@ -962,6 +1287,21 @@ export function buildOps(calls, scene) {
 				break;
 			}
 		}
+	}
+
+	// Children the server carried along with a moved support: send their final transform so the client lands on exactly
+	// the server's state (the client then treats them as explicitly placed and does not move them a second time).
+	for (const id of followed) {
+		const o = objs.get(id);
+		if (!o) continue;
+		ops.push({
+			op: "update",
+			id,
+			changes: {
+				position: { ...o.position },
+				rotation_y_deg: o.rotation_y_deg || 0,
+			},
+		});
 	}
 
 	// Jobs: one per object/decal that ends this patch in "building" state and still exists (last write wins).
@@ -1244,6 +1584,9 @@ function compactScene(scene) {
 			color: o.color,
 			...(o.material && { material: o.material }),
 			parent: o.parent || "",
+			...(o.light_on === false && { light_on: false }),
+			...(o.mount && { mount: o.mount }),
+			...(o.product?.catalogId && { catalog_id: o.product.catalogId }),
 			...(o.product && {
 				product: `${o.product.title} (${o.product.store}, ${o.product.price}${o.product.similar ? ", similar" : ""})`,
 			}),

@@ -1,4 +1,6 @@
 // Pure, defensive scene editing: (scene, ops) -> new scene. No three.js view code here.
+
+import { followParents, MOUNTS, resolveMount } from "@gemini-hack/placement";
 import * as THREE from "three";
 import type {
 	Decal,
@@ -181,6 +183,9 @@ function sanitizeNewObject(id: string, raw: unknown): SceneObject | null {
 	if (glb) o.glb = glb;
 	const product = sanitizeProduct(r.product);
 	if (product) o.product = product;
+	if (r.light_on === false) o.light_on = false;
+	if ((MOUNTS as readonly string[]).includes(r.mount as string))
+		o.mount = r.mount as SceneObject["mount"];
 	if (shape === "custom")
 		o.status = r.status === "failed" ? "failed" : "building";
 	return o;
@@ -207,6 +212,16 @@ function applyObjectChanges(o: SceneObject, raw: unknown): void {
 		else delete o.material;
 	}
 	if (typeof c.description === "string") o.description = c.description;
+	if (c.light_on === false) o.light_on = false;
+	else if (c.light_on === true) delete o.light_on;
+	if ((MOUNTS as readonly string[]).includes(c.mount as string))
+		o.mount = c.mount as SceneObject["mount"];
+	else if (
+		c.mount === "" ||
+		c.mount === null ||
+		(typeof c.parent === "string" && c.parent)
+	)
+		delete o.mount;
 	if ("glb" in c) {
 		const g = sanitizeGlb(c.glb);
 		if (g) o.glb = g;
@@ -383,18 +398,55 @@ function applyOne(scene: Scene, op: Op | Record<string, unknown>): void {
 }
 
 /** Returns a NEW scene with ops applied. Malformed ops are skipped, never thrown. */
-export function applyOpsToScene(scene: Scene, ops: unknown): Scene {
+/** Ids whose placement the batch sets explicitly (absolute numbers): they must not also inherit their support's move. */
+export type Explicit = { pos: Set<string>; rot: Set<string> };
+export function explicitPlacements(ops: unknown): Explicit {
+	const out: Explicit = { pos: new Set(), rot: new Set() };
+	if (!Array.isArray(ops)) return out;
+	for (const op of ops) {
+		if (!op || typeof op !== "object") continue;
+		const o = op as {
+			op?: string;
+			id?: unknown;
+			changes?: Record<string, unknown>;
+		};
+		if (typeof o.id !== "string") continue;
+		const ch = o.changes || {};
+		const all =
+			o.op === "add" ||
+			(o.op === "update" && ("parent" in ch || "mount" in ch)); // a new frame: both components
+		if (all || (o.op === "update" && "position" in ch)) out.pos.add(o.id);
+		if (all || (o.op === "update" && "rotation_y_deg" in ch)) out.rot.add(o.id);
+	}
+	return out;
+}
+
+/** `explicit`: ids placed explicitly anywhere in the whole batch (pass it when a batch is applied one op at a time). */
+export function applyOpsToScene(
+	scene: Scene,
+	ops: unknown,
+	explicit: Explicit = explicitPlacements(ops),
+): Scene {
 	const next = cloneScene(scene);
 	if (!Array.isArray(ops)) return next;
 	for (const op of ops) {
 		if (!op || typeof op !== "object") continue;
 		try {
+			const before = cloneScene(next);
 			applyOne(next, op as Op);
+			settlePlacement(before, next, explicit);
 		} catch (e) {
 			console.warn("[engine] skipped op", op, e);
 		}
 	}
 	return next;
+}
+
+/** Shared placement rules after one op: mounted objects stay pinned, objects on a support follow it (or go with it). */
+function settlePlacement(before: Scene, next: Scene, explicit: Explicit) {
+	// Mounts first: a support that moves because of its mount must carry its children along.
+	for (const o of next.objects) if (o.mount) resolveMount(o, next.room);
+	followParents(before, next, explicit);
 }
 
 export function cloneScene(s: Scene): Scene {
