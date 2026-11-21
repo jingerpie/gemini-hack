@@ -1,0 +1,16 @@
+{
+  "name": "server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "dev": "node --watch index.mjs",
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@gemini-hack/catalog": "workspace:*",
+    "@google/genai": "^3.6.1",
+    "three": "^0.170.0"
+  }
+}

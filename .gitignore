@@ -51,3 +51,6 @@ temp
 
 # Playwright MCP page snapshots
 .playwright-mcp/
+
+# Server bench and test outputs
+apps/server/test/out/

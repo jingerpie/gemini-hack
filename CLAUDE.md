@@ -20,6 +20,12 @@ Commits and pull requests are authored by the human committer alone. Never add C
 
 ## Where the app is
 
-- `studio/` is the hackathon app (standalone npm project, not part of the bun/turbo workspace). `apps/` and `packages/` are the unused scaffold.
-- `studio/web/src/types.ts` is the contract between server and front end. Read it first; change it deliberately.
-- Run: `cd studio && npm install && npm run dev` (server :8787, web :5273). Needs `GEMINI_API_KEY` in the repo-root `.env`.
+Bun workspace with Turborepo.
+
+- `apps/web`: front end (Vite, React, three.js), port 5273, proxies `/api` to the server.
+- `apps/server`: back end (Node, plain `node:http`), port 8787. Prompts in `apps/server/prompts/`, test and bench scripts in `apps/server/test/`.
+- `packages/catalog` (`@gemini-hack/catalog`): pre-built shop catalog data (catalog.json, product images, build(THREE) model files).
+- `packages/ui` (`@gemini-hack/ui`): shared shadcn/ui components. `packages/config`: shared tsconfig base.
+- `scripts/`: dev utilities (`gemini-agent.mjs` runs the Gemini CLI with the repo-root key).
+- `apps/web/src/types.ts` is the contract between server and front end. Read it first; change it deliberately.
+- Run: `bun install && bun run dev` (both apps via turbo). Needs `GEMINI_API_KEY` in the repo-root `.env`.
