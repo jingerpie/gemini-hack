@@ -13,6 +13,8 @@ import type {
   PatchResponse,
   Scene,
   SceneObject,
+  SourceEvent,
+  SourceRequest,
   SurfaceId,
   Vec3,
   VerifyRequest,
@@ -443,6 +445,27 @@ export function createMockApi(): Api {
       if (req.prompt.toLowerCase().includes("fail")) throw new Error("mock image failure");
       const dataUrl = renderDecal(req.prompt, req.width, req.height);
       return { dataUrl, ms: Date.now() - start, model: "mock-nano-banana" };
+    },
+
+    async source(req: SourceRequest, signal: AbortSignal, onEvent: (e: SourceEvent) => void): Promise<void> {
+      const start = Date.now();
+      const steps = ["shopping agent started", `searching the web: ${req.name}`, "opening product page: wayfair.com", "opening product page: etsy.com", "writing the product list"];
+      for (const s of steps) {
+        await sleep(rand(1500, 3000), signal);
+        onEvent({ type: "status", text: s });
+      }
+      await sleep(rand(800, 1500), signal);
+      const q = encodeURIComponent(req.name);
+      onEvent({
+        type: "done",
+        ms: Date.now() - start,
+        model: "mock-antigravity",
+        products: [
+          { title: `${req.name} — handcrafted, solid wood with velvet upholstery`, price: "$1,249.00", store: "Wayfair", url: `https://www.wayfair.com/keyword.php?keyword=${q}`, image_url: "" },
+          { title: `Vintage-style ${req.name}`, price: "£890", store: "Etsy", url: `https://www.etsy.com/search?q=${q}`, image_url: "" },
+          { title: `Modern ${req.name}`, price: "Call for price", store: "Article", url: "javascript:alert(1)", image_url: "" },
+        ],
+      });
     },
 
     async verify(req: VerifyRequest, signal?: AbortSignal): Promise<VerifyResponse> {

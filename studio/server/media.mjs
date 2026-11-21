@@ -1,5 +1,5 @@
 // /api/decal (Nano Banana image), /api/token (ephemeral live-transcribe token), /api/verify (Decisions API).
-import { BASE, KEY, generateContent, postJson, scrub } from './lib.mjs';
+import { BASE, KEY, generateContent, postJson, scrub, withRetry } from './lib.mjs';
 
 // ---------- decal ----------
 export const IMAGE_MODEL = process.env.IMAGE_MODEL || 'gemini-nano-banana-2.1';
@@ -50,12 +50,12 @@ export async function token() {
   const { GoogleGenAI } = await genai();
   const ai = new GoogleGenAI({ apiKey: KEY, httpOptions: { apiVersion: LIVE_API_VERSION } });
   const now = Date.now();
-  const tok = await ai.authTokens.create({ config: {
+  const tok = await withRetry(() => ai.authTokens.create({ config: {
     uses: 1,
     expireTime: new Date(now + 30 * 60e3).toISOString(),
     newSessionExpireTime: new Date(now + 5 * 60e3).toISOString(),
     liveConnectConstraints: { model: LIVE_MODEL, config: TRANSCRIBE_CONFIG },
-  } });
+  } }), { label: 'token', priority: 'high' });
   if (!tok?.name) throw new Error('token mint returned no name');
   return { token: tok.name, model: LIVE_MODEL, apiVersion: LIVE_API_VERSION };
 }

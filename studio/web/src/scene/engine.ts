@@ -12,11 +12,13 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import type { Decal, Engine, Scene, SceneObject, Shape, SurfaceId, Vec3 } from "../types";
+import type { Decal, Engine, Op, Scene, SceneObject, Shape, SurfaceId, Vec3, View } from "../types";
 import { DEFAULT_SCENE } from "./defaultScene";
 import { applyOpsToScene, clamp, cloneScene, normalizeScene, SURFACE_IDS, WALL_IDS, type WallId } from "./ops";
 import { computeFit, disposeObject, evaluateModelCode, modelTargets, type MatState, type PreparedModel, type StdMat } from "./model";
 import { makeDecalPlaceholderTexture, makeFloorTexture, makeLabel } from "./textures";
+import { keyOutBackground, type KeyedPixels } from "./decalAlpha";
+import { createGlbLoaders, disposeGlbInstance, disposeGlbTemplate, instantiateGlb, loadGlbTemplate, type GlbLoaders, type GlbTemplate } from "./glb";
 
 export { DEFAULT_SCENE };
 
@@ -30,7 +32,22 @@ export type StudioEngine = Engine & {
   resetView(): void;
   /** Replace the whole scene (e.g. load). Pushes an undo snapshot. */
   setScene(scene: Scene): void;
+  /** Camera pose and what the cursor is on (raycast at call time from the last pointer position over the canvas). */
+  getView(): View;
+  /** Hovered object / decal / surface (throttled ~10/s). Called with null when the cursor leaves everything. */
+  onHover(fn: (h: HoverInfo | null) => void): () => void;
+  /** ONE undo step; ops applied one at a time gapMs apart. Other mutations flush the rest first; undo cancels it. */
+  applyOpsStaggered(ops: Op[], gapMs: number): Promise<void>;
+  /** With maxSide: downscaled JPEG (quality default 0.7). Without args: unchanged full-size JPEG at 0.88. */
+  screenshot(opts?: { maxSide?: number; quality?: number }): string;
+  /** Load the merchant GLB for a custom object (cached by url). Keeps its real size when plausible (written back). */
+  setAssetGlb(objectId: string, url: string): Promise<{ ok: boolean; error?: string; size?: Vec3 }>;
+  /** GLB download progress per object (bytes; total 0 = unknown). */
+  onAssetProgress(fn: (objectId: string, loaded: number, total: number) => void): () => void;
 };
+
+export type HoverInfo = { id: string; name: string; kind: "object" | "decal" | "surface" };
+const SURFACE_NAMES: Record<SurfaceId, string> = { wall_back: "back wall", wall_left: "left wall", wall_right: "right wall", floor: "floor", ceiling: "ceiling" };
 
 // ---------------------------------------------------------------------------------------------------------------
 // small helpers
@@ -125,12 +142,65 @@ function writeMat(m: StdMat, s: MatState, baseTransparent = false) {
   }
   m.depthWrite = baseTransparent ? m.depthWrite : !tr;
   const phys = m as THREE.MeshPhysicalMaterial;
-  if (phys.isMeshPhysicalMaterial) {
-    // Surfaces: glossy finishes get a lacquer clearcoat so "shiny" reads strongly.
+  if (phys.isMeshPhysicalMaterial && !phys.userData.glb) {
+    // Glossy finishes get a lacquer clearcoat so "shiny" reads strongly. Dark glossy DIELECTRICS (black lacquer) are
+    // tamed: a dielectric reflects ~4% head-on, and its grazing Fresnel must not turn a black wall into a mirror of
+    // the oak floor, so the clearcoat, the base specular (F0 and F90) and the specular env strength drop with
+    // darkness. Metals keep full coloured reflection. Glossy floors get a boosted, sharp reflection (see boxEnv).
     const gloss = THREE.MathUtils.smoothstep(0.5 - s.roughness, 0, 0.4);
-    phys.clearcoat = gloss;
-    phys.clearcoatRoughness = Math.max(0.02, s.roughness * 0.4);
+    const c = s.color;
+    const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; // linear
+    const dark = 1 - THREE.MathUtils.smoothstep(lum, 0.0, 0.2);
+    const tame = gloss * dark * (1 - s.metalness);
+    const floor = phys.userData.surface === "floor";
+    phys.clearcoat = gloss * (1 - 0.6 * tame);
+    phys.clearcoatRoughness = Math.max(0.02, s.roughness * (floor ? 0.25 : 0.4));
+    phys.specularIntensity = 1 - 0.5 * tame;
+    const u = phys.userData.specEnv as { value: number } | undefined;
+    if (u) u.value = floor ? 1 + 0.8 * gloss : 1 - 0.7 * tame;
   }
+}
+
+// Box-projected (parallax-corrected) reflections for the room surfaces: the room cube capture is re-projected onto
+// the room box, so a shiny floor mirrors the walls and furniture in the right place and a glossy wall reflects the
+// floor only near its bottom edge (an unprojected cube map smears the floor across the whole wall at grazing angles).
+// uSpecEnv scales only the specular IBL of a surface (scene.environmentIntensity overrides material.envMapIntensity).
+const boxEnv = {
+  uBoxMin: { value: new THREE.Vector3(-3, 0, -2.5) },
+  uBoxMax: { value: new THREE.Vector3(3, 2.8, 2.5) },
+  uBoxCap: { value: new THREE.Vector3() },
+  uBoxOn: { value: 0 },
+};
+
+function patchBoxEnv(m: THREE.MeshPhysicalMaterial) {
+  const specEnv = { value: 1 };
+  m.userData.specEnv = specEnv;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, boxEnv, { uSpecEnv: specEnv });
+    sh.vertexShader = "varying vec3 vBoxWPos;\n" + sh.vertexShader.replace(
+      "#include <project_vertex>",
+      "#include <project_vertex>\n  vBoxWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;",
+    );
+    const chunk = THREE.ShaderChunk.envmap_physical_pars_fragment
+      .replace(
+        "reflectVec = inverseTransformDirection( reflectVec, viewMatrix );",
+        "reflectVec = inverseTransformDirection( reflectVec, viewMatrix );\n\t\t\treflectVec = boxProject( reflectVec );",
+      )
+      .replace("return envMapColor.rgb * envMapIntensity;", "return envMapColor.rgb * envMapIntensity * uSpecEnv;");
+    sh.fragmentShader =
+      `varying vec3 vBoxWPos;
+uniform vec3 uBoxMin; uniform vec3 uBoxMax; uniform vec3 uBoxCap; uniform float uBoxOn; uniform float uSpecEnv;
+vec3 boxProject( vec3 v ) {
+  if ( uBoxOn < 0.5 ) return v;
+  vec3 p = clamp( vBoxWPos, uBoxMin, uBoxMax );
+  vec3 vv = vec3( abs( v.x ) < 1e-4 ? 1e-4 : v.x, abs( v.y ) < 1e-4 ? 1e-4 : v.y, abs( v.z ) < 1e-4 ? 1e-4 : v.z );
+  vec3 t = max( ( uBoxMax - p ) / vv, ( uBoxMin - p ) / vv );
+  float f = min( min( t.x, t.y ), t.z );
+  return normalize( p + vv * f - uBoxCap );
+}
+` + sh.fragmentShader.replace("#include <envmap_physical_pars_fragment>", chunk);
+  };
+  m.customProgramCacheKey = () => "boxenv1";
 }
 
 function lerpState(a: MatState, b: MatState, k: number, out: MatState): MatState {
@@ -189,7 +259,7 @@ function primGeometry(shape: Shape, size: Vec3): THREE.BufferGeometry {
 // ---------------------------------------------------------------------------------------------------------------
 // view records
 
-type CodeEntry = { code: string; baseColor: string | null };
+type CodeEntry = { code: string; baseColor: string | null; glbUrl?: string }; // glb entries: code = "glb:" + url
 type Fx = {
   group: THREE.Group;
   fill?: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
@@ -202,7 +272,7 @@ type Fx = {
   key: string;
   t0: number;
 };
-type ModelView = { prepared: PreparedModel; wrap: THREE.Group; code: string; baseColor: string | null };
+type ModelView = { prepared: PreparedModel; wrap: THREE.Group; code: string; baseColor: string | null; glbUrl?: string };
 type Mode = "prim" | "solid" | "ghost" | "model";
 type ObjView = {
   id: string;
@@ -257,6 +327,14 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   const latestImage = new Map<string, string>();
   const textureCache = new Map<string, Promise<THREE.Texture>>();
   let pendingPrepared: { code: string; model: PreparedModel } | null = null;
+  // merchant GLBs: templates cached by url (survive undo/redo), per-url failures, per-object base colour at arrival
+  const glbLoads = new Map<string, Promise<GlbTemplate>>();
+  const glbReady = new Map<string, GlbTemplate>();
+  const glbFailed = new Map<string, string>();
+  const glbProgress = new Map<string, { loaded: number; total: number; at: number }>();
+  const glbBase = new Map<string, string>(); // cacheKey(objectId, url) -> object colour when the model arrived
+  const progressListeners = new Set<(objectId: string, loaded: number, total: number) => void>();
+  let glbLoaders: GlbLoaders | null = null;
 
   // ---------------- renderer / scene / camera
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -336,6 +414,8 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   const surfMats = {} as Record<SurfaceId, THREE.MeshPhysicalMaterial>;
   for (const id of SURFACE_IDS) {
     surfMats[id] = new THREE.MeshPhysicalMaterial({ side: THREE.FrontSide, map: id === "floor" ? floorTex : null });
+    surfMats[id].userData.surface = id;
+    patchBoxEnv(surfMats[id]);
   }
   const roomGroup = new THREE.Group();
   roomGroup.name = "room";
@@ -426,6 +506,8 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     fill.position.set(-W * 0.8, H * 1.1, D / 2 + 3);
     fill.target.position.set(0, H * 0.3, 0);
     practical.position.set(0, H - 0.35, 0);
+    boxEnv.uBoxMin.value.set(-W / 2, 0, -D / 2);
+    boxEnv.uBoxMax.value.set(W / 2, H, D / 2);
     surfApplied.clear();
   }
 
@@ -460,9 +542,13 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
 
   function want(o: SceneObject, v?: ObjView): Want {
     if (o.shape !== "custom") return { mode: "prim" };
+    if (o.glb && glbReady.has(o.glb)) {
+      const base = glbBase.get(cacheKey(o.id, o.glb)) ?? null;
+      return { mode: "model", entry: { code: "glb:" + o.glb, baseColor: base, glbUrl: o.glb }, rebuilding: false };
+    }
     const entry = codeFor(o);
     if (entry) return { mode: "model", entry, rebuilding: false };
-    if (v?.model) return { mode: "model", entry: { code: v.model.code, baseColor: v.model.baseColor }, rebuilding: o.status === "building" };
+    if (v?.model) return { mode: "model", entry: { code: v.model.code, baseColor: v.model.baseColor, glbUrl: v.model.glbUrl }, rebuilding: o.status === "building" };
     return { mode: o.status === "building" ? "ghost" : "solid" };
   }
 
@@ -479,7 +565,8 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     }
     if (v.model) {
       v.body.remove(v.model.wrap);
-      disposeObject(v.model.wrap);
+      if (v.model.glbUrl) disposeGlbInstance(v.model.wrap); // geometry + textures belong to the cached template
+      else disposeObject(v.model.wrap);
       v.model = undefined;
     }
   }
@@ -489,7 +576,10 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     let mode: Mode = w.mode;
     if (w.mode === "model") {
       let prepared: PreparedModel | null = null;
-      if (pendingPrepared && pendingPrepared.code === w.entry.code) {
+      const tpl = w.entry.glbUrl ? glbReady.get(w.entry.glbUrl) : undefined;
+      if (w.entry.glbUrl) {
+        if (tpl) prepared = instantiateGlb(tpl);
+      } else if (pendingPrepared && pendingPrepared.code === w.entry.code) {
         prepared = pendingPrepared.model;
         pendingPrepared = null;
       } else {
@@ -505,7 +595,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
         wrap.scale.copy(fit.scale);
         wrap.position.copy(fit.offset);
         v.body.add(wrap);
-        v.model = { prepared, wrap, code: w.entry.code, baseColor: w.entry.baseColor };
+        v.model = { prepared, wrap, code: w.entry.code, baseColor: w.entry.baseColor, glbUrl: w.entry.glbUrl };
         const targets = modelTargets(prepared.records, o, w.entry.baseColor);
         prepared.records.forEach((r, i) => writeMat(r.mat, targets[i], r.transparent));
       } else mode = "solid";
@@ -538,7 +628,10 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
 
   function syncFx(v: ObjView, o: SceneObject, w: Want) {
     const kind = fxKind(v, w);
-    const k = kind ? `${kind}|${o.size.x}|${o.size.y}|${o.size.z}|${o.name}` : "";
+    const prog = o.glb && !glbReady.has(o.glb) ? glbProgress.get(o.glb) : undefined;
+    const mb = (n: number) => (n / 1048576).toFixed(1);
+    const progText = prog ? (prog.total ? `Loading model ${mb(prog.loaded)} of ${mb(prog.total)} MB` : `Loading model ${mb(prog.loaded)} MB`) : "";
+    const k = kind ? `${kind}|${o.size.x}|${o.size.y}|${o.size.z}|${o.name}|${progText}` : "";
     if (v.fx && v.fx.key === k) return;
     const t0 = v.fx?.t0 ?? performance.now();
     removeFx(v);
@@ -550,6 +643,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     let fillMesh: Fx["fill"];
     if (kind === "fill") {
       fillMesh = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: 0x9ad6ff, transparent: true, opacity: 0.15, depthWrite: false }));
+      fillMesh.name = "ghost-fill"; // pointable (a building object has no other mesh)
       fillMesh.renderOrder = 2;
       group.add(fillMesh);
     }
@@ -571,7 +665,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     const scan = new THREE.Group();
     scan.add(scanFill, scanLine);
     scan.renderOrder = 3;
-    const label = makeLabel((kind === "fill" ? "Building " : "Rebuilding ") + o.name + "…");
+    const label = makeLabel(progText ? `${o.name}: ${progText}` : (kind === "fill" ? "Building " : "Rebuilding ") + o.name + "…");
     label.position.y = s.y + 0.1;
     group.add(edges, scan, label);
     setLayer(group, FX_LAYER);
@@ -724,17 +818,33 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   function loadTexture(url: string): Promise<THREE.Texture> {
     let p = textureCache.get(url);
     if (!p) {
-      p = new Promise<THREE.Texture>((resolve, reject) => {
-        new THREE.TextureLoader().load(
-          url,
-          (t) => {
-            t.colorSpace = THREE.SRGBColorSpace;
-            t.anisotropy = 8;
-            resolve(t);
-          },
-          undefined,
-          (e) => reject(e),
-        );
+      // Decode, then (once per url, cached) key out a uniform background so logos sit on the wall without a square.
+      p = new Promise<HTMLImageElement>((resolve, reject) => {
+        const im = new Image();
+        if (!url.startsWith("data:")) im.crossOrigin = "anonymous";
+        im.onload = () => resolve(im);
+        im.onerror = () => reject(new Error("image decode failed"));
+        im.src = url;
+      }).then(async (im) => {
+        await new Promise((r) => setTimeout(r, 0)); // let the current frame go before the pixel work
+        let keyed: KeyedPixels | null = null;
+        try {
+          keyed = keyOutBackground(im);
+        } catch (e) {
+          console.warn("[engine] decal background keying failed", e);
+        }
+        let t: THREE.Texture;
+        if (keyed) {
+          const dt = new THREE.DataTexture(keyed.data, keyed.width, keyed.height, THREE.RGBAFormat);
+          dt.generateMipmaps = true;
+          dt.minFilter = THREE.LinearMipmapLinearFilter;
+          dt.magFilter = THREE.LinearFilter;
+          t = dt;
+        } else t = new THREE.Texture(im);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 8;
+        t.needsUpdate = true;
+        return t;
       });
       p.catch(() => textureCache.delete(url));
       textureCache.set(url, p);
@@ -782,7 +892,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
         if (disposed || decalViews.get(v.id) !== v || v.wantUrl !== url) return;
         const old = v.img;
         const mat = new THREE.MeshStandardMaterial({
-          map: tex, transparent: true, opacity: animate ? 0 : 1, roughness: 0.55, metalness: 0,
+          map: tex, transparent: true, alphaTest: 0.01, opacity: animate ? 0 : 1, roughness: 0.55, metalness: 0,
           emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.12,
           polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, depthWrite: false,
         });
@@ -883,6 +993,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     );
     const root = new THREE.Group();
     root.name = "decal:" + d.id;
+    ph.name = "decal-ph"; // pointable while the image is still building
     ph.layers.set(FX_LAYER);
     root.add(ph);
     const v: DecalView = { id: d.id, key: d.id + "#" + ++serial, d: structuredClone(d), root, size: { w: d.width, h: d.height }, ph, phKey: "", failed: false, t0: performance.now() };
@@ -920,7 +1031,131 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   }
 
   // ---------------- reconcile / notify
+  // A GLB has arrived for o (first time for this object state): status ready, real size written back, base re-seated
+  // on its support, kept flush against a wall it stood against, things resting on it moved with its new top.
+  function settleGlb(s: Scene, o: SceneObject, t: GlbTemplate) {
+    if (o.status === "ready") return; // restored "ready" state (undo/redo/load) keeps its size, incl. user resizes
+    o.status = "ready";
+    if (!glbBase.has(cacheKey(o.id, t.url))) glbBase.set(cacheKey(o.id, t.url), o.color);
+    const m = t.size;
+    const plausible = [m.x, m.y, m.z].every((v) => v >= 0.03 && v <= 4.5);
+    let k = 1;
+    if (!plausible) {
+      k = Infinity;
+      for (const a of ["x", "y", "z"] as const) if (m[a] > 1e-6) k = Math.min(k, o.size[a] / m[a]);
+      if (!Number.isFinite(k) || k <= 0) k = 1;
+    }
+    const r3 = (n: number) => Math.max(0.01, Math.round(n * 1000) / 1000);
+    const ns: Vec3 = { x: r3(m.x * k), y: r3(m.y * k), z: r3(m.z * k) };
+    const { width: W, depth: D } = s.room;
+    const th = o.rotation_y_deg * DEG, c = Math.abs(Math.cos(th)), sn = Math.abs(Math.sin(th));
+    const ext = (z: Vec3) => ({ ex: (c * z.x + sn * z.z) / 2, ez: (sn * z.x + c * z.z) / 2 });
+    const e0 = ext(o.size), e1 = ext(ns);
+    const NEAR = 0.15;
+    const atBack = o.position.z - e0.ez <= -D / 2 + NEAR;
+    const atLeft = o.position.x - e0.ex <= -W / 2 + NEAR;
+    const atRight = o.position.x + e0.ex >= W / 2 - NEAR;
+    o.size = ns;
+    if (atBack) o.position.z = -D / 2 + e1.ez + 0.004;
+    if (atLeft) o.position.x = -W / 2 + e1.ex + 0.004;
+    else if (atRight) o.position.x = W / 2 - e1.ex - 0.004;
+    if (W > 2 * e1.ex) o.position.x = clamp(o.position.x, -W / 2 + e1.ex, W / 2 - e1.ex);
+    o.position.z = Math.max(o.position.z, -D / 2 + e1.ez);
+    const par = o.parent ? s.objects.find((p) => p.id === o.parent && p.id !== o.id) : undefined;
+    if (par) o.position.y = par.position.y + par.size.y;
+    // whatever rests on it follows its new top
+    const seen = new Set<string>([o.id]);
+    const shift = (id: string, dy: number) => {
+      for (const ch of s.objects) {
+        if (ch.parent !== id || seen.has(ch.id)) continue;
+        seen.add(ch.id);
+        ch.position.y += dy;
+        shift(ch.id, dy);
+      }
+    };
+    for (const ch of s.objects) {
+      if (ch.parent !== o.id || seen.has(ch.id)) continue;
+      const dy = o.position.y + o.size.y - ch.position.y;
+      seen.add(ch.id);
+      if (Math.abs(dy) > 1e-4) {
+        ch.position.y += dy;
+        shift(ch.id, dy);
+      }
+    }
+  }
+
+  function emitProgress(url: string, loaded: number, total: number) {
+    const now = performance.now();
+    const prev = glbProgress.get(url);
+    const final = total > 0 && loaded >= total;
+    if (prev && !final && now - prev.at < 250) return; // ~4 updates/s
+    glbProgress.set(url, { loaded, total, at: now });
+    for (const o of scene.objects) {
+      if (o.glb !== url) continue;
+      for (const fn of [...progressListeners]) {
+        try {
+          fn(o.id, loaded, total);
+        } catch (e) {
+          console.warn("[engine] progress listener threw", e);
+        }
+      }
+      const v = views.get(o.id);
+      if (v) syncFx(v, o, want(o, v)); // label shows the progress
+    }
+  }
+
+  function ensureGlb(url: string, retry = false): Promise<GlbTemplate> {
+    const cur = glbLoads.get(url);
+    if (cur) return cur;
+    const failed = glbFailed.get(url);
+    if (failed && !retry) return Promise.reject(new Error(failed));
+    glbFailed.delete(url);
+    glbLoaders ??= createGlbLoaders(renderer);
+    const p = loadGlbTemplate(glbLoaders, url, (l, t) => {
+      if (!disposed) emitProgress(url, l, t);
+    });
+    glbLoads.set(url, p);
+    p.then(
+      (t) => {
+        glbProgress.delete(url);
+        if (disposed) return disposeGlbTemplate(t);
+        glbReady.set(url, t);
+        console.info(`[engine] glb ${t.meshCount} meshes, ${(t.bytes / 1048576).toFixed(1)} MB, ${t.ms} ms, size ${t.size.x.toFixed(2)} x ${t.size.y.toFixed(2)} x ${t.size.z.toFixed(2)}: ${url}`);
+        let hit = false;
+        for (const o of scene.objects) {
+          if (o.shape !== "custom" || o.glb !== url) continue;
+          settleGlb(scene, o, t);
+          hit = true;
+        }
+        if (hit) {
+          reconcile(true);
+          notify();
+        }
+      },
+      (e) => {
+        glbLoads.delete(url);
+        glbProgress.delete(url);
+        const msg = (e as Error)?.message ?? String(e);
+        glbFailed.set(url, msg);
+        console.warn("[engine] glb failed:", msg, url);
+        // drop the progress label
+        for (const o of scene.objects) {
+          if (o.glb !== url) continue;
+          const v = views.get(o.id);
+          if (v) syncFx(v, o, want(o, v));
+        }
+      },
+    );
+    return p;
+  }
+
   function normalizeStatuses(s: Scene) {
+    for (const o of s.objects) {
+      if (o.shape === "custom" && o.glb) {
+        const t = glbReady.get(o.glb);
+        if (t) settleGlb(s, o, t);
+      }
+    }
     for (const o of s.objects) {
       if (o.shape === "custom" && codeByKey.has(cacheKey(o.id, o.description))) o.status = "ready";
     }
@@ -938,6 +1173,11 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     syncSurfaces(animate);
     syncObjects(animate);
     syncDecals(animate);
+    for (const o of scene.objects) {
+      if (o.shape === "custom" && o.glb && !glbReady.has(o.glb) && !glbLoads.has(o.glb) && !glbFailed.has(o.glb)) {
+        ensureGlb(o.glb).catch(() => {}); // the failure is reported to setAssetGlb callers / kept in glbFailed
+      }
+    }
   }
 
   function notify() {
@@ -1049,6 +1289,127 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     return null;
   }
 
+  // ---------------- pointing: what is under the cursor (raycast only on demand / throttled hover)
+  const pointer = { ndc: new THREE.Vector2(), inside: false, moved: false };
+  let dragging = false;
+  let lastHoverAt = 0;
+  let hovered: HoverInfo | null = null;
+  const hoverListeners = new Set<(h: HoverInfo | null) => void>();
+  const raycaster = new THREE.Raycaster();
+  raycaster.layers.enable(FX_LAYER);
+  const hoverBox = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+    new THREE.LineBasicMaterial({ color: 0xcfeeff, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false }),
+  );
+  hoverBox.name = "hover";
+  hoverBox.layers.set(FX_LAYER); // invisible to the reflection capture
+  hoverBox.renderOrder = 4;
+  hoverBox.visible = false;
+  const onPointerMove = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    pointer.ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    pointer.inside = true;
+    pointer.moved = true;
+  };
+  const onPointerLeave = () => {
+    pointer.inside = false;
+    setHover(null);
+  };
+  canvas.addEventListener("pointermove", onPointerMove);
+  canvas.addEventListener("pointerleave", onPointerLeave);
+  controls.addEventListener("start", () => {
+    dragging = true;
+    setHover(null);
+  });
+  controls.addEventListener("end", () => {
+    dragging = false;
+    pointer.moved = true;
+  });
+
+  const visibleChain = (o: THREE.Object3D | null) => {
+    for (; o; o = o.parent) if (!o.visible) return false;
+    return true;
+  };
+
+  function pick(): { info: HoverInfo; point: THREE.Vector3 } | null {
+    if (!pointer.inside) return null;
+    camera.updateMatrixWorld();
+    raycaster.setFromCamera(pointer.ndc, camera);
+    const hits = raycaster.intersectObjects([roomGroup, objectsGroup, ...WALL_IDS.map((w) => wallFrames[w])], true);
+    for (const h of hits) {
+      const o = h.object as THREE.Mesh;
+      if (!o.isMesh) continue; // labels (sprites), outlines, scanner lines
+      if (o.layers.isEnabled(FX_LAYER) && o.name !== "decal-ph" && o.name !== "ghost-fill") continue;
+      if (!visibleChain(o)) continue;
+      for (let p: THREE.Object3D | null = o; p; p = p.parent) {
+        const nm = p.name;
+        if (nm.startsWith("obj:")) {
+          const ob = scene.objects.find((x) => x.id === nm.slice(4));
+          if (ob) return { info: { id: ob.id, name: ob.name, kind: "object" }, point: h.point };
+          break;
+        }
+        if (nm.startsWith("decal:")) {
+          const d = scene.decals.find((x) => x.id === nm.slice(6));
+          if (d) return { info: { id: d.id, name: d.name, kind: "decal" }, point: h.point };
+          break;
+        }
+        const sid = SURFACE_IDS.find((id) => surfMeshes[id] === p);
+        if (sid) return { info: { id: sid, name: SURFACE_NAMES[sid], kind: "surface" }, point: h.point };
+      }
+      // shell / baseboard boxes resolve to nothing: keep looking behind them
+    }
+    return null;
+  }
+
+  function placeHoverBox(h: HoverInfo | null) {
+    hoverBox.removeFromParent();
+    hoverBox.visible = false;
+    if (!h || h.kind === "surface") return; // surfaces: no outline (it would just frame the whole room)
+    if (h.kind === "object") {
+      const v = views.get(h.id);
+      if (!v) return;
+      const sz = v.obj.size;
+      hoverBox.position.set(0, sz.y / 2, 0);
+      hoverBox.scale.set(sz.x * 1.03 + 0.01, sz.y * 1.03 + 0.01, sz.z * 1.03 + 0.01);
+      v.root.add(hoverBox);
+    } else {
+      const v = decalViews.get(h.id);
+      if (!v) return;
+      hoverBox.position.set(0, 0, 0.002);
+      hoverBox.scale.set(v.size.w + 0.03, v.size.h + 0.03, 0.004);
+      v.root.add(hoverBox);
+    }
+    hoverBox.visible = true;
+  }
+
+  function setHover(h: HoverInfo | null) {
+    const same = (hovered?.id ?? null) === (h?.id ?? null);
+    hovered = h;
+    if (same) {
+      // same target: keep the outline glued to it (its view may have been rebuilt), no event
+      if (h && h.kind !== "surface" && (!hoverBox.visible || !hoverBox.parent?.parent)) placeHoverBox(h);
+      return;
+    }
+    placeHoverBox(h);
+    for (const fn of [...hoverListeners]) {
+      try {
+        fn(h ? { ...h } : null);
+      } catch (e) {
+        console.warn("[engine] hover listener threw", e);
+      }
+    }
+  }
+
+  function updateHover(now: number) {
+    if (!pointer.inside || dragging) return;
+    // pointer moved: up to 10/s; otherwise re-check slowly (things can move under a still cursor)
+    if (now - lastHoverAt < (pointer.moved ? 100 : 400)) return;
+    lastHoverAt = now;
+    pointer.moved = false;
+    setHover(pick()?.info ?? null);
+  }
+
   // ---------------- per-frame
   function updateVisibility() {
     const { width: W, depth: D, height: H } = scene.room;
@@ -1079,8 +1440,11 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     s3.background = CAPTURE_BG;
     s3.environment = envRT.texture;
     s3.environmentIntensity = BASE_ENV_INTENSITY;
+    boxEnv.uBoxOn.value = 0; // the generic studio env is not a capture of this room
     cubeCam.position.set(0, H * 0.45, D * 0.1);
     cubeCam.update(renderer, s3);
+    boxEnv.uBoxCap.value.copy(cubeCam.position);
+    boxEnv.uBoxOn.value = 1;
     s3.background = BG;
     if (surfMeshes.ceiling) surfMeshes.ceiling.visible = ceilVis;
     WALL_IDS.forEach((w, i) => (wallFrames[w].visible = frameVis[i]));
@@ -1099,6 +1463,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
         captureEnv();
       } catch (e) {
         console.warn("[engine] env capture failed", e);
+        boxEnv.uBoxOn.value = 0;
         s3.environment = envRT.texture;
         s3.environmentIntensity = BASE_ENV_INTENSITY;
       }
@@ -1113,6 +1478,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     controls.update();
     clampControls();
     updateVisibility();
+    updateHover(now);
     renderer.render(s3, camera);
   }
 
@@ -1146,6 +1512,22 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   renderer.setAnimationLoop(frame);
 
   // ---------------- public API
+  // staggered apply: one undo snapshot, ops land one by one
+  let stagger: { steps: Op[]; timer: number; resolve: () => void } | null = null;
+  function flushStagger() {
+    const st = stagger;
+    if (!st) return;
+    stagger = null;
+    clearTimeout(st.timer);
+    if (st.steps.length) {
+      scene = applyOpsToScene(scene, st.steps.splice(0));
+      normalizeStatuses(scene);
+      reconcile(true);
+      notify();
+    }
+    st.resolve();
+  }
+
   function commit(next: Scene) {
     normalizeStatuses(next);
     if (JSON.stringify(next) === JSON.stringify(scene)) return;
@@ -1156,6 +1538,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     notify();
   }
 
+  let shotCanvas: HTMLCanvasElement | null = null;
   const api: StudioEngine = {
     getScene() {
       return cloneScene(scene);
@@ -1163,6 +1546,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
 
     applyOps(ops) {
       if (disposed) return;
+      flushStagger();
       try {
         commit(applyOpsToScene(scene, ops));
       } catch (e) {
@@ -1172,6 +1556,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
 
     setScene(next) {
       if (disposed) return;
+      flushStagger();
       commit(normalizeScene(next));
     },
 
@@ -1207,7 +1592,9 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     },
 
     getAssetCode(objectId) {
-      return latestCode.get(objectId)?.code;
+      // the code of the model for the object's CURRENT description (after undo, latestCode may be a stale newer build)
+      const o = scene.objects.find((x) => x.id === objectId);
+      return (o ? codeByKey.get(cacheKey(objectId, o.description))?.code : undefined) ?? latestCode.get(objectId)?.code;
     },
 
     setAssetFailed(objectId) {
@@ -1242,8 +1629,101 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
       notify();
     },
 
+    applyOpsStaggered(ops, gapMs) {
+      if (disposed) return Promise.resolve();
+      flushStagger();
+      const list = Array.isArray(ops) ? ops.filter((o) => o && typeof o === "object") : [];
+      if (!list.length) return Promise.resolve();
+      undoStack.push(scene);
+      if (undoStack.length > 80) undoStack.shift();
+      return new Promise<void>((resolve) => {
+        const st = { steps: [...list], timer: 0, resolve };
+        stagger = st;
+        const tick = () => {
+          if (stagger !== st || disposed) return;
+          const op = st.steps.shift()!;
+          try {
+            scene = applyOpsToScene(scene, [op]);
+            normalizeStatuses(scene);
+            reconcile(true);
+            notify();
+          } catch (e) {
+            console.error("[engine] staggered op failed", op, e);
+          }
+          if (!st.steps.length) {
+            stagger = null;
+            resolve();
+          } else st.timer = window.setTimeout(tick, Math.max(0, gapMs));
+        };
+        tick();
+      });
+    },
+
+    getView() {
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      const v3 = (v: THREE.Vector3): Vec3 => ({ x: r2(v.x), y: r2(v.y), z: r2(v.z) });
+      const out: View = { position: v3(camera.position), target: v3(controls.target) };
+      if (disposed) return out;
+      const h = pick();
+      if (h) {
+        out.pointed = h.info.id;
+        out.pointedAt = v3(h.point);
+      }
+      return out;
+    },
+
+    async setAssetGlb(objectId: string, url: string) {
+      if (disposed) return { ok: false, error: "engine disposed" };
+      if (typeof url !== "string" || !/^(https?:|blob:|\/)/i.test(url.trim())) return { ok: false, error: "bad glb url" };
+      url = url.trim();
+      const o = scene.objects.find((x) => x.id === objectId);
+      if (o && o.shape !== "custom") return { ok: false, error: "not a custom object" };
+      if (o && o.glb !== url) {
+        o.glb = url; // in place: no undo step (like setAssetCode)
+        notify();
+      }
+      let t: GlbTemplate;
+      try {
+        t = await ensureGlb(url, true);
+      } catch (e) {
+        return { ok: false, error: (e as Error)?.message ?? String(e) };
+      }
+      if (disposed) return { ok: false, error: "engine disposed" };
+      const cur = scene.objects.find((x) => x.id === objectId);
+      if (cur && cur.glb === url) {
+        if (cur.status !== "ready") {
+          settleGlb(scene, cur, t);
+          reconcile(true);
+          notify();
+        }
+        return { ok: true, size: { ...cur.size } };
+      }
+      return { ok: true, size: { x: t.size.x, y: t.size.y, z: t.size.z } };
+    },
+
+    onAssetProgress(fn) {
+      progressListeners.add(fn);
+      return () => {
+        progressListeners.delete(fn);
+      };
+    },
+
+    onHover(fn) {
+      hoverListeners.add(fn);
+      return () => {
+        hoverListeners.delete(fn);
+      };
+    },
+
     undo() {
       if (disposed) return false;
+      if (stagger) {
+        // cancel the remaining steps; the snapshot pushed by applyOpsStaggered is popped below (one undo step)
+        const st = stagger;
+        stagger = null;
+        clearTimeout(st.timer);
+        st.resolve();
+      }
       const prev = undoStack.pop();
       if (!prev) return false;
       scene = prev;
@@ -1260,10 +1740,24 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
       };
     },
 
-    screenshot() {
+    screenshot(opts?: { maxSide?: number; quality?: number }) {
       if (disposed) return "";
+      const hv = hoverBox.visible;
+      hoverBox.visible = false; // keep the hover outline out of pictures sent to models
       renderer.render(s3, camera); // render + read in the same task: no preserveDrawingBuffer needed
-      return canvas.toDataURL("image/jpeg", 0.88);
+      hoverBox.visible = hv;
+      const maxSide = opts?.maxSide;
+      if (!maxSide || maxSide <= 0) return canvas.toDataURL("image/jpeg", opts?.quality ?? 0.88);
+      const k = Math.min(1, maxSide / Math.max(canvas.width, canvas.height));
+      const w = Math.max(1, Math.round(canvas.width * k)), h = Math.max(1, Math.round(canvas.height * k));
+      shotCanvas ??= document.createElement("canvas");
+      if (shotCanvas.width !== w) shotCanvas.width = w;
+      if (shotCanvas.height !== h) shotCanvas.height = h;
+      const g = shotCanvas.getContext("2d");
+      if (!g) return canvas.toDataURL("image/jpeg", opts?.quality ?? 0.7);
+      g.imageSmoothingQuality = "high";
+      g.drawImage(canvas, 0, 0, w, h);
+      return shotCanvas.toDataURL("image/jpeg", opts?.quality ?? 0.7);
     },
 
     focus(id) {
@@ -1285,7 +1779,18 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     dispose() {
       if (disposed) return;
       disposed = true;
+      if (stagger) {
+        clearTimeout(stagger.timer);
+        stagger.resolve();
+        stagger = null;
+      }
       renderer.setAnimationLoop(null);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
+      hoverListeners.clear();
+      hoverBox.removeFromParent();
+      hoverBox.geometry.dispose();
+      hoverBox.material.dispose();
       ro.disconnect();
       controls.dispose();
       tweens.clear();
@@ -1303,6 +1808,10 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
       cubeRT.dispose();
       capturedRT?.dispose();
       pmrem.dispose();
+      for (const t of glbReady.values()) disposeGlbTemplate(t);
+      glbReady.clear();
+      glbLoaders?.dispose();
+      progressListeners.clear();
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();

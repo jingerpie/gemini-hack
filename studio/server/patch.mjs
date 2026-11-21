@@ -2,6 +2,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { SERVER_DIR, generateContent } from './lib.mjs';
+import { spaceBlock, footprint, boxesOverlap, isFlat } from './space.mjs';
+
+// Send the canvas screenshot (request.image) to Hydrogen on the fast path too. ?see=0 / FAST_SEE=0 turns it off.
+export const FAST_SEE = process.env.FAST_SEE !== '0'; // on by default: measured +0.15 s median, same results (test/out/space_after_see.log)
 
 export const PATCH_MODEL = process.env.PATCH_MODEL || 'gemini-4-hydrogen';
 const SYSTEM = fs.readFileSync(path.join(SERVER_DIR, 'prompts', 'orchestrator.txt'), 'utf8');
@@ -108,7 +112,7 @@ export function buildOps(calls, scene) {
   const room = normRoom(scene);
   const objs = new Map((scene?.objects || []).map(o => [o.id, structuredClone(o)]));
   const decals = new Map((scene?.decals || []).map(d => [d.id, structuredClone(d)]));
-  const ops = [], say = [], dropped = [];
+  const ops = [], say = [], dropped = [], touched = new Set();
   const uniq = (base, map) => { let id = slug(base), i = 2; const b = id; while (objs.has(id) || decals.has(id)) id = `${b}_${i++}`; return id; };
 
   for (const { name, args: a = {} } of calls) {
@@ -123,8 +127,10 @@ export function buildOps(calls, scene) {
       };
       const m = cleanMaterial(a.material); if (m) o.material = m;
       if (shape === 'custom') { o.description = String(a.description || a.name || id); o.status = 'building'; }
+      const want = { ...o.position };
       fitObject(o, room);
-      objs.set(id, o); ops.push({ op: 'add', id, object: o });
+      if (Math.abs(want.x - o.position.x) > 0.05 || Math.abs(want.z - o.position.z) > 0.05) dropped.push(`adjusted: ${id} pulled inside the room (${r2(want.x)},${r2(want.z)} -> ${o.position.x},${o.position.z})`);
+      objs.set(id, o); ops.push({ op: 'add', id, object: o }); touched.add(id);
       continue;
     }
     if (name === 'update_object') {
@@ -155,6 +161,7 @@ export function buildOps(calls, scene) {
       }
       if (!Object.keys(c).length) { dropped.push(`update_object ${a.id} (no changes)`); continue; }
       objs.set(cur.id, merged); ops.push({ op: 'update', id: cur.id, changes: c });
+      if (c.position || c.size || c.rotation_y_deg !== undefined || c.parent !== undefined) touched.add(cur.id);
       continue;
     }
     if (name === 'remove_object') {
@@ -203,6 +210,36 @@ export function buildOps(calls, scene) {
     dropped.push(`unknown ${name}`);
   }
 
+  // Safety net: objects added/moved in this patch that overlap another object on the same support are slid to the
+  // nearest free position (<= 0.8 m, along their wall if against one). Untouched objects never move.
+  for (const id of touched) {
+    const o = objs.get(id);
+    if (!o || isFlat(o) || [...objs.values()].some(b => b.parent === id)) continue;
+    const others = [...objs.values()].filter(b => b.id !== id && !isFlat(b) && (b.parent || '') === (o.parent || ''));
+    const hit = (p, tol = 0.02) => { const f = footprint({ ...o, position: p }); return others.find(b => boxesOverlap(f, footprint(b), tol)); };
+    const first = hit(o.position); if (!first) continue;
+    const f0 = footprint(o), hx = room.width / 2, hz = room.depth / 2;
+    let lockX = f0.x0 + hx <= 0.15 || hx - f0.x1 <= 0.15, lockZ = f0.z0 + hz <= 0.15;
+    if (lockX && lockZ) lockX = lockZ = false;
+    let best = null;
+    const maxD = lockX || lockZ ? 1.5 : 0.8; // sliding along a wall may go a little further
+    for (let d = 0.05; d <= maxD + 1e-4 && !best; d += 0.05) for (const [ax, sg] of [['x', 1], ['x', -1], ['z', 1], ['z', -1]]) {
+      if ((ax === 'x' && lockX) || (ax === 'z' && lockZ)) continue;
+      const p = { ...o.position, [ax]: r2(o.position[ax] + sg * d) };
+      const f = footprint({ ...o, position: p });
+      if (f.x0 < -hx - 1e-6 || f.x1 > hx + 1e-6 || f.z0 < -hz - 1e-6 || f.z1 > hz + 1e-6) continue;
+      if (!hit(p, -0.08)) { best = p; break; } // land with >= 0.08 m clearance
+    }
+    if (!best) { dropped.push(`adjusted: none possible, ${id} overlaps ${first.id} (no free spot within ${maxD} m)`); continue; }
+    dropped.push(`adjusted: ${id} moved (${o.position.x},${o.position.z}) -> (${best.x},${best.z}) to clear ${first.id}`);
+    o.position = best;
+    for (let i = ops.length - 1; i >= 0; i--) {
+      const op = ops[i]; if (op.id !== id) continue;
+      if (op.op === 'add') { op.object.position = { ...best }; break; }
+      if (op.op === 'update') { op.changes.position = { ...best }; break; }
+    }
+  }
+
   // Jobs: one per object/decal that ends this patch in "building" state and still exists (last write wins).
   const jobs = [], seen = new Set();
   for (let i = ops.length - 1; i >= 0; i--) {
@@ -221,6 +258,80 @@ export function buildOps(calls, scene) {
   return { ops, jobs, say: say.join(' ').trim(), dropped };
 }
 
+// ---------- designer path ----------
+// Hydrogen (fast hands) routes whole-room / style / open-ended requests to a stronger planning model via ask_designer.
+export const DESIGNER_MODEL = process.env.DESIGNER_MODEL || 'gemini-4-argon';
+export const DESIGNER_TIMEOUT_MS = 30000;
+const DESIGNER_THINKING = { 'gemini-4-argon': 'low', 'gemini-4-neon': 'low', 'gemini-4-carbon': 'low', 'gemini-4-hydrogen': 'low' }; // per-model thinking level; others use the model default
+const ASK_DESIGNER = { name: 'ask_designer',
+  description: 'Hand the request to the senior interior designer, who plans a complete coherent set of edits. Use for whole-room designs/themes, a style or mood for the room as a whole, and open-ended judgements ("this feels empty", "what would make it better?"). Call it ALONE: no other calls, no say.',
+  parameters: { type: 'object', properties: { brief: { type: 'string', description: "the user's request restated as a clear design brief, including constraints from the utterance and history (things to keep, colors, mood)" } }, required: ['brief'] } };
+const DESIGNER_TOOLS = TOOLS.map(t => t.name !== 'say' ? t : { ...t, description: 'One or two short sentences (max 40 words), spoken to the user, explaining the design idea.' });
+const DESIGNER_SYSTEM = fs.readFileSync(path.join(SERVER_DIR, 'prompts', 'designer.txt'), 'utf8')
+  .replace('{{SHARED}}', SYSTEM.slice(SYSTEM.indexOf('COORDINATES'), SYSTEM.indexOf('BEHAVIOR')).trim());
+const declare = list => [{ functionDeclarations: list.map(t => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }];
+const callsOf = js => (js.candidates?.[0]?.content?.parts || []).filter(p => p.functionCall).map(p => ({ name: p.functionCall.name, args: p.functionCall.args || {} }));
+function imagePart(image) {
+  const m = typeof image === 'string' && /^data:(image\/[\w.+-]+);base64,([\s\S]+)$/.exec(image);
+  return m ? { inlineData: { mimeType: m[1], data: m[2] } } : null;
+}
+function promptInput(scene, history, utterance, view) {
+  return `CURRENT SCENE:\n${JSON.stringify(compactScene(scene))}\n\nRECENT HISTORY (oldest first):\n` +
+    ((Array.isArray(history) ? history : []).slice(-6).map((h, i) => `${i + 1}. User: "${h.u}" -> Applied: ${h.applied}`).join('\n') || '(none)') +
+    `\n\n${spaceBlock(scene, history, view)}\n\nUSER SAID: "${String(utterance).trim()}"`;
+}
+
+// Fast path: one Hydrogen call. Returns raw function calls. withDesigner=false reproduces the pre-designer behavior.
+export async function orchestrate({ scene, history, utterance, view, image }, { model = PATCH_MODEL, thinkingLevel = 'low', withDesigner = true, timeoutMs = 30000, see = FAST_SEE } = {}) {
+  const parts = [{ text: promptInput(scene, history, utterance, view) }];
+  const ip = see && imagePart(image);
+  if (ip) parts.push({ text: 'SCREENSHOT of the room as the user sees it right now:' }, ip);
+  const body = {
+    systemInstruction: { parts: [{ text: SYSTEM }] },
+    contents: [{ role: 'user', parts }],
+    tools: declare(withDesigner ? [...TOOLS, ASK_DESIGNER] : TOOLS),
+    toolConfig: { functionCallingConfig: { mode: 'ANY' } },
+    generationConfig: { thinkingConfig: { thinkingLevel } },
+  };
+  return callsOf(await generateContent(model, body, { timeoutMs, label: 'patch', priority: 'high' }));
+}
+
+// Designer: one call to a planning model with the same scene tools (+ optional screenshot). Returns raw function calls.
+export async function runDesigner({ scene, history, utterance, brief, image, view }, { model = DESIGNER_MODEL, thinkingLevel = DESIGNER_THINKING[model], timeoutMs = DESIGNER_TIMEOUT_MS, signal } = {}) {
+  const parts = [{ text: promptInput(scene, history, utterance, view) + `\n\nDESIGN BRIEF: ${brief || utterance}` }];
+  const ip = imagePart(image);
+  if (ip) parts.push({ text: 'SCREENSHOT of the room as the user sees it right now:' }, ip);
+  const body = {
+    systemInstruction: { parts: [{ text: DESIGNER_SYSTEM }] },
+    contents: [{ role: 'user', parts }],
+    tools: declare(DESIGNER_TOOLS),
+    toolConfig: { functionCallingConfig: { mode: 'ANY' } },
+    ...(thinkingLevel && { generationConfig: { thinkingConfig: { thinkingLevel } } }),
+  };
+  return callsOf(await generateContent(model, body, { timeoutMs, signal, label: 'designer', priority: 'high' }));
+}
+
+// Designer with a hedged Hydrogen fallback started at the same time (aborted when the designer succeeds).
+async function design(req, scene, designerModel) {
+  const fbCtl = new AbortController();
+  const fallback = designerModel === PATCH_MODEL ? null
+    : runDesigner(req, { model: PATCH_MODEL, thinkingLevel: 'low', timeoutMs: DESIGNER_TIMEOUT_MS, signal: fbCtl.signal }).catch(e => ({ error: e }));
+  let why;
+  try {
+    const out = buildOps(await runDesigner(req, { model: designerModel }), scene);
+    if (!out.ops.length) throw new Error('designer returned no edits');
+    fbCtl.abort(new Error('designer answered'));
+    return { ...out, model: designerModel };
+  } catch (e) { why = String(e.message || e).slice(0, 120); }
+  console.log(`designer ${designerModel} failed: ${why}`);
+  const fb = fallback ? await fallback : { error: new Error('no fallback') };
+  if (fb.error || !fb.length) return { ops: [], jobs: [], say: "Sorry, the designer couldn't finish that. Try a more specific request.", dropped: [`designer: ${why}`], model: designerModel };
+  const out = buildOps(fb, scene);
+  out.say = `The designer didn't answer in time, so here's my quick take. ${out.say}`.trim();
+  out.dropped = [`designer: ${why}`, ...out.dropped];
+  return { ...out, model: PATCH_MODEL };
+}
+
 // Compact scene for the prompt: only what the model needs, no code / image data.
 function compactScene(scene) {
   const room = normRoom(scene);
@@ -236,21 +347,17 @@ function compactScene(scene) {
   };
 }
 
-export async function patch({ scene, history = [], utterance }) {
+export async function patch({ scene, history = [], utterance, image, view }, { designer, see } = {}) {
   if (typeof utterance !== 'string' || !utterance.trim()) { const e = new Error('utterance required'); e.status = 400; throw e; }
-  const input = `CURRENT SCENE:\n${JSON.stringify(compactScene(scene))}\n\nRECENT HISTORY (oldest first):\n` +
-    ((Array.isArray(history) ? history : []).slice(-6).map((h, i) => `${i + 1}. User: "${h.u}" -> Applied: ${h.applied}`).join('\n') || '(none)') +
-    `\n\nUSER SAID: "${utterance.trim()}"`;
-  const body = {
-    systemInstruction: { parts: [{ text: SYSTEM }] },
-    contents: [{ role: 'user', parts: [{ text: input }] }],
-    tools: [{ functionDeclarations: TOOLS.map(t => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }],
-    toolConfig: { functionCallingConfig: { mode: 'ANY' } },
-    generationConfig: { thinkingConfig: { thinkingLevel: 'low' } },
-  };
+  const designerModel = /^gemini-[\w.-]+$/.test(designer || '') ? designer : DESIGNER_MODEL;
   const t0 = Date.now();
-  const js = await generateContent(PATCH_MODEL, body, { timeoutMs: 30000 });
-  const calls = (js.candidates?.[0]?.content?.parts || []).filter(p => p.functionCall).map(p => ({ name: p.functionCall.name, args: p.functionCall.args || {} }));
+  const calls = await orchestrate({ scene, history, utterance, view, image }, { see: see ?? FAST_SEE });
+  const ask = calls.find(c => c.name === 'ask_designer');
+  if (ask) {
+    const brief = String(ask.args.brief || utterance);
+    const out = await design({ scene, history, utterance, brief, image, view }, scene, designerModel);
+    return { ops: out.ops, jobs: out.jobs, say: out.say, ms: Date.now() - t0, model: out.model, brief, _dropped: out.dropped };
+  }
   const out = buildOps(calls, scene);
   return { ops: out.ops, jobs: out.jobs, say: out.say, ms: Date.now() - t0, model: PATCH_MODEL, _dropped: out.dropped };
 }

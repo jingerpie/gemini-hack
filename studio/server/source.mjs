@@ -5,7 +5,7 @@
 // Also GET /api/img?u=<url>: SSRF-safe image proxy for hot-link-blocked product photos.
 import dns from 'node:dns/promises';
 import net from 'node:net';
-import { BASE, H, sse, scrub, generateContent, textOf } from './lib.mjs';
+import { BASE, H, sse, scrub, generateContent, textOf, fetchRetry } from './lib.mjs';
 
 export const SOURCE_AGENT = process.env.SOURCE_AGENT || 'antigravity-preview-09-2026';
 export const SOURCE_DIRECT_MODEL = process.env.SOURCE_DIRECT_MODEL || 'gemini-4-hydrogen';
@@ -69,7 +69,7 @@ function cancelInteraction(id) {
 async function agentSource(req, { signal, onStatus, onInteraction }) {
   const t0 = Date.now();
   let interactionId = null, finalText = '', status = null;
-  const res = await fetch(`${BASE}/interactions`, { method: 'POST', headers: H, signal,
+  const res = await fetchRetry(`${BASE}/interactions`, { method: 'POST', headers: H, signal,
     body: JSON.stringify({ agent: SOURCE_AGENT, input: agentPrompt(req.description || req.name), environment: 'remote', stream: true }) });
   if (!res.ok) throw new Error(scrub(`agent HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`));
   const steps = {};

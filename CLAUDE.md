@@ -13,6 +13,11 @@ Commits and pull requests are authored by the human committer alone. Never add C
 - Make checkpoint commits at each stable point during a build so there is always something to roll back to.
 - Never commit `.env` or `.playwright-mcp/`. Scan staged files for API keys before committing.
 
+## Branches
+
+- `main` holds only features that have been tested and approved by a human. Never open a PR into `main` or merge into `main` on your own.
+- Work goes to working branches (currently `studio-build`). Pull requests target working branches.
+
 ## Where the app is
 
 - `studio/` is the hackathon app (standalone npm project, not part of the bun/turbo workspace). `apps/` and `packages/` are the unused scaffold.

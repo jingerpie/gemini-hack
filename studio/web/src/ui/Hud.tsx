@@ -8,6 +8,11 @@ type Props = {
   verifyEnabled: boolean;
   onVerify(on: boolean): void;
   onUndo(): void;
+  shopEnabled: boolean;
+  onShop(on: boolean): void;
+  onNewRoom(): void;
+  onRender(): void;
+  rendering: boolean;
   stats: { last: number | null; median: number | null; jobs: number };
 };
 
@@ -18,7 +23,7 @@ const CHIP_LABEL: Record<ChipState, string> = {
   fallback: "fallback · type below",
 };
 
-export function Hud({ chip, chipDetail, mock, verifyEnabled, onVerify, onUndo, stats }: Props) {
+export function Hud({ chip, chipDetail, mock, verifyEnabled, onVerify, onUndo, shopEnabled, onShop, onNewRoom, onRender, rendering, stats }: Props) {
   return (
     <>
       <div className="hud hud-left">
@@ -35,6 +40,7 @@ export function Hud({ chip, chipDetail, mock, verifyEnabled, onVerify, onUndo, s
         <span className={`chip chip-${chip}`} title={chipDetail || undefined}>
           <i />
           {CHIP_LABEL[chip]}
+          {chipDetail && chip !== "idle" && <span className="chip-detail">{chipDetail}</span>}
         </span>
         {mock && <span className="chip chip-mock">mock</span>}
       </div>
@@ -63,12 +69,47 @@ export function Hud({ chip, chipDetail, mock, verifyEnabled, onVerify, onUndo, s
           </span>
           Verify
         </button>
+        <button
+          className={`toggle toggle-shop ${shopEnabled ? "on" : ""}`}
+          onClick={() => onShop(!shopEnabled)}
+          title="For each new custom object, a sourcing agent finds 3 real products you can buy"
+        >
+          <span className="toggle-track">
+            <span className="toggle-thumb" />
+          </span>
+          Shop the look
+        </button>
+        <button
+          className={`btn btn-render ${rendering ? "busy" : ""}`}
+          onClick={onRender}
+          title="Photoreal render of the current view (or say “render it”)"
+        >
+          {rendering ? (
+            <span className="spinner" />
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+              <rect x="1.5" y="3.5" width="11" height="8" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+              <circle cx="7" cy="7.5" r="2.1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M4.5 3.5 5.4 2h3.2l.9 1.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+            </svg>
+          )}
+          Photoreal
+        </button>
         <button className="btn" onClick={onUndo} title="Undo (Ctrl+Z)">
           <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
             <path d="M4.5 3 1.8 5.7l2.7 2.7" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M2 5.7h6.2a3.6 3.6 0 0 1 0 7.2H5.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
           </svg>
           Undo
+        </button>
+        <button
+          className="btn"
+          onClick={() => {
+            if (window.confirm("Start a new room? This clears the scene, tasks and transcript.")) onNewRoom();
+          }}
+          title="Clear the room and start over"
+        >
+          New room
         </button>
       </div>
     </>

@@ -87,3 +87,4 @@ for (const e of ev.filter((e) => e.kind === "utterance")) {
   console.log(`  ${String(Math.round(e.t)).padStart(6)} UTTERANCE +${ended ? Math.round(at - ended.end) : "?"}ms after end of ${ended?.k}: ${e.text}`);
 }
 console.log(`  interim events: ${ev.filter((e) => e.kind === "interim").length}`);
+process.exit(0);

@@ -4,7 +4,7 @@
 // true end of the phrase.
 //
 // Usage (from studio/):  node web/src/voice/test/run-clip.mjs [natural|monologue|quick] [--noise=0.02] [--drop-at=9000]
-//                         [--gate=0|1] [--lead=1000] [--quiet]
+//                         [--gate=0|1] [--lead=1000] [--quiet] [--raw] [--rotate-ms=5000]
 import fs from "node:fs";
 import path from "node:path";
 import { GoogleGenAI, Modality } from "@google/genai";
@@ -26,6 +26,7 @@ const DROP_AT = +opt("drop-at", 0);
 const LEAD = +opt("lead", 1000);
 const QUIET = args.includes("--quiet");
 const RAW = args.includes("--raw");
+if (+opt("rotate-ms", 0)) (TUNING.PROACTIVE_RECONNECT_MS = +opt("rotate-ms", 0)), (TUNING.RECONNECT_IDLE_MS = 300);
 if (opt("gate", "") !== "") TUNING.GATE_AFTER_END = opt("gate", "") === "1";
 
 const TEXT = {

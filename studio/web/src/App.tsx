@@ -5,6 +5,7 @@ import { Timeline } from "./ui/Timeline";
 import { Sidebar } from "./ui/Sidebar";
 import { Dock } from "./ui/Dock";
 import { Hud } from "./ui/Hud";
+import { RenderOverlay } from "./ui/RenderOverlay";
 
 // ?mock=1 → mock engine + api + voice.  ?mock=api → real 3D engine, mock api + voice.  (none) → all real.
 const MOCK_MODE = new URLSearchParams(location.search).get("mock");
@@ -45,12 +46,15 @@ function loadFactories(): Promise<Factories> {
 }
 
 export type ChipState = "idle" | "connecting" | "listening" | "fallback";
+type Hover = { id: string; name: string; kind: "object" | "decal" | "surface" } | null;
+type HoverEngine = Engine & { onHover?(fn: (h: Hover) => void): () => void };
 
 export default function App() {
   const state = useSyncExternalStore(manager.subscribe, manager.getSnapshot);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [engineError, setEngineError] = useState<string | null>(null);
   const [engineReady, setEngineReady] = useState(false);
+  const [hover, setHover] = useState<Hover>(null);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceDetail, setVoiceDetail] = useState<string>("");
   const levelRef = useRef(0);
@@ -60,11 +64,13 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     let engine: Engine | null = null;
+    let offHover: (() => void) | undefined;
     loadFactories()
       .then((f) => {
         if (cancelled || !viewportRef.current) return;
         engine = f.createEngine(viewportRef.current);
         manager.attachEngine(engine);
+        offHover = (engine as HoverEngine).onHover?.((h) => setHover(h ? { ...h } : null));
         setEngineReady(true);
       })
       .catch((err) => {
@@ -73,6 +79,7 @@ export default function App() {
       });
     return () => {
       cancelled = true;
+      offHover?.();
       if (engine) {
         manager.attachEngine(null);
         try {
@@ -149,6 +156,8 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleVoice]);
 
+  const closeRender = useCallback(() => manager.showRender(null), []);
+
   const chip: ChipState =
     voiceState === "error" ? "fallback" : voiceState === "connecting" ? "connecting" : voiceState === "listening" ? "listening" : "idle";
 
@@ -157,7 +166,7 @@ export default function App() {
     const last = ms.length ? ms[ms.length - 1] : null;
     const sorted = ms.slice().sort((a, b) => a - b);
     const median = sorted.length ? sorted[Math.floor((sorted.length - 1) / 2)] : null;
-    const jobs = state.tasks.filter((t) => t.kind !== "patch" && t.status === "running").length;
+    const jobs = state.tasks.filter((t) => t.kind !== "patch" && (t.status === "running" || t.status === "queued")).length;
     return { last, median, jobs };
   }, [state.patchMs, state.tasks]);
 
@@ -185,8 +194,20 @@ export default function App() {
             verifyEnabled={state.verifyEnabled}
             onVerify={(on) => manager.setVerifyEnabled(on)}
             onUndo={() => manager.undo()}
+            shopEnabled={state.shopEnabled}
+            onShop={(on) => manager.setShopEnabled(on)}
+            onNewRoom={() => manager.newRoom()}
+            onRender={() => manager.render()}
+            rendering={state.tasks.some((t) => t.kind === "render" && t.status === "running")}
             stats={stats}
           />
+          {hover && engineReady && !state.render && (
+            <div className={`pointing pointing-${hover.kind}`} aria-live="off">
+              <span className="pointing-k">pointing at</span>
+              <span className="pointing-v">{hover.name}</span>
+            </div>
+          )}
+          {state.render && <RenderOverlay view={state.render} onClose={closeRender} />}
         </div>
         <section className="dock">
           <Timeline manager={manager} />
