@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { StudioState, Task, TaskManager } from "../lib/taskManager";
+import type { ShopGroup, StudioState, Task, TaskManager } from "../lib/taskManager";
+import type { Product } from "../types";
 import { fmtMs } from "./Timeline";
 
 export function Sidebar({ state, manager }: { state: StudioState; manager: TaskManager }) {
@@ -24,6 +25,25 @@ export function Sidebar({ state, manager }: { state: StudioState; manager: TaskM
         </header>
         <TaskList tasks={state.tasks} manager={manager} />
       </section>
+
+      {state.shop.length > 0 && (
+        <section className={`panel shop-panel ${state.shop.some((g) => g.products.length) ? "has-products" : ""}`}>
+          <header className="panel-head">
+            <h2>
+              <i className="dot dot-source" /> Shop the look
+            </h2>
+            <span className="panel-meta">{state.shop.reduce((n, g) => n + g.products.length, 0) || ""}</span>
+          </header>
+          <div className="shop">
+            {state.shop
+              .slice()
+              .reverse()
+              .map((g) => (
+                <ShopGroupView key={g.objectId} g={g} manager={manager} />
+              ))}
+          </div>
+        </section>
+      )}
 
       <section className={`panel ops-panel ${opsOpen ? "open" : ""}`}>
         <header className="panel-head clickable" onClick={() => setOpsOpen((o) => !o)}>
@@ -213,4 +233,90 @@ function OpsLog({ state }: { state: StudioState }) {
 function clock(at: number) {
   const d = new Date(at);
   return `${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+}
+
+// ---------- Shop the look ----------
+// Everything in a Product is untrusted text from the web: rendered as text only, links limited to http(s).
+function safeHttp(u: unknown): string | null {
+  if (typeof u !== "string" || !u.trim()) return null;
+  try {
+    const url = new URL(u.trim());
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
+  return (
+    <div className={`shop-group shop-${g.status}`}>
+      <div className="shop-group-head">
+        <span className="shop-name">{g.name}</span>
+        {g.status === "running" && (
+          <span className="shop-status">
+            <span className="spinner" />
+            {g.statusLine}
+          </span>
+        )}
+        {g.status === "failed" && <span className="shop-status bad">no products · {g.statusLine}</span>}
+        {g.status === "cancelled" && <span className="shop-status">cancelled</span>}
+        {g.status === "done" && g.model && <span className="shop-status">{g.model}</span>}
+        {g.status === "running" && (
+          <button className="btn-mini" onClick={() => manager.cancel(g.taskId)}>
+            Cancel
+          </button>
+        )}
+      </div>
+      {g.products.length > 0 && (
+        <div className="shop-items">
+          {g.products.map((p, i) => (
+            <ProductCard key={i} p={p} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProductCard({ p }: { p: Product }) {
+  const href = safeHttp(p.url);
+  const img = safeHttp(p.image_url);
+  const [stage, setStage] = useState<0 | 1 | 2>(img ? 0 : 2); // 0 proxy, 1 direct, 2 placeholder
+  const src = img ? (stage === 0 ? `/api/img?u=${encodeURIComponent(img)}` : stage === 1 ? img : null) : null;
+  const title = String(p.title ?? "").slice(0, 200);
+  const body = (
+    <>
+      <span className="product-img">
+        {src ? (
+          <img
+            src={src}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setStage((s) => (s === 0 ? 1 : 2))}
+          />
+        ) : (
+          <span className="product-ph" aria-hidden>
+            <svg width="22" height="22" viewBox="0 0 24 24">
+              <path d="M4 19V9l8-5 8 5v10H4Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+            </svg>
+          </span>
+        )}
+      </span>
+      <span className="product-title" title={title}>
+        {title || "Product"}
+      </span>
+      <span className="product-meta">
+        <b>{String(p.price ?? "").slice(0, 40)}</b>
+        <span>{String(p.store ?? "").slice(0, 60)}</span>
+      </span>
+    </>
+  );
+  return href ? (
+    <a className="product" href={href} target="_blank" rel="noopener noreferrer">
+      {body}
+    </a>
+  ) : (
+    <div className="product product-nolink">{body}</div>
+  );
 }

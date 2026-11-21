@@ -185,6 +185,9 @@ export default function App() {
             verifyEnabled={state.verifyEnabled}
             onVerify={(on) => manager.setVerifyEnabled(on)}
             onUndo={() => manager.undo()}
+            shopEnabled={state.shopEnabled}
+            onShop={(on) => manager.setShopEnabled(on)}
+            onNewRoom={() => manager.newRoom()}
             stats={stats}
           />
         </div>

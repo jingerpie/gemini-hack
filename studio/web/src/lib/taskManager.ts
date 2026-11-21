@@ -14,10 +14,32 @@ import type {
   Job,
   Op,
   PatchResponse,
+  Product,
   Scene,
+  SourceEvent,
 } from "../types";
 
-export type TaskKind = "patch" | "asset" | "decal";
+/** Engine extras the real engine (scene/engine.ts StudioEngine) has; mocks may lack them. */
+type EngineExtras = {
+  setAssetCode(objectId: string, code: string, description?: string): { ok: boolean; error?: string };
+  getAssetCode?(objectId: string): string | undefined;
+  setScene?(scene: Scene): void;
+  resetView?(): void;
+};
+
+export type ShopGroup = {
+  objectId: string;
+  name: string;
+  taskId: string;
+  status: "running" | "done" | "failed" | "cancelled";
+  statusLine: string;
+  model?: string;
+  products: Product[];
+};
+
+const URL_PARAMS = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
+
+export type TaskKind = "patch" | "asset" | "decal" | "source";
 export type TaskStatus = "running" | "held" | "done" | "nochange" | "failed" | "cancelled" | "superseded";
 export type VerifyState =
   | { state: "pending" }
@@ -42,6 +64,7 @@ export type Task = {
   verify?: VerifyState;
   opsCount?: number;
   claim?: string;
+  model?: string; // patch: which model answered (orchestrator or designer)
 };
 
 export type TranscriptLine =
@@ -59,6 +82,8 @@ export type StudioState = {
   clockStart: number | null;
   counters: { objects: number; decals: number; done: number; failed: number; running: number };
   patchMs: number[]; // completed patch latencies, oldest first
+  shopEnabled: boolean;
+  shop: ShopGroup[];
 };
 
 type Internal = {
@@ -134,6 +159,12 @@ export class TaskManager {
   private sceneCounts = { objects: 0, decals: 0 };
   private unsubEngine: (() => void) | null = null;
   private emitQueued = false;
+  private shopEnabled = URL_PARAMS.get("shop") !== "0";
+  private shop: ShopGroup[] = [];
+  private shopSeen = new Set<string>(); // objectIds whose group has seen its object in the scene
+  private initialScene: Scene | null = null;
+  private shotCheap = URL_PARAMS.get("shot") !== "0";
+  private shotSlow = 0;
 
   constructor(api: Api | null = null) {
     this.api = api;
@@ -150,9 +181,12 @@ export class TaskManager {
     this.unsubEngine = null;
     this.engine = engine;
     if (engine) {
-      this.countScene(engine.getScene());
+      const s0 = engine.getScene();
+      if (!this.initialScene) this.initialScene = s0;
+      this.countScene(s0);
       this.unsubEngine = engine.subscribe((s) => {
         this.countScene(s);
+        this.pruneShop(s);
         this.emit();
       });
     }
@@ -212,6 +246,8 @@ export class TaskManager {
       clockStart: this.clockStart,
       counters: { ...this.sceneCounts, done, failed, running },
       patchMs: this.patchMs.slice(),
+      shopEnabled: this.shopEnabled,
+      shop: this.shop.map((g) => ({ ...g, products: g.products.slice() })),
     };
   }
 
@@ -259,6 +295,37 @@ export class TaskManager {
       return;
     }
     this.dispatch(clean);
+  }
+
+  setShopEnabled(on: boolean) {
+    this.shopEnabled = on;
+    this.emit();
+  }
+
+  /** "New room": cancel everything, clear tasks/transcript/log/history, put the default scene back. */
+  newRoom() {
+    for (const t of this.tasks.slice()) if (t.status === "running" || t.status === "held") this.cancel(t.id);
+    this.tasks = [];
+    this.transcript = [];
+    this.interim = "";
+    this.opsLog = [];
+    this.history = [];
+    this.patchMs = [];
+    this.shop = [];
+    this.shopSeen.clear();
+    this.activeJob.clear();
+    this.internals.clear();
+    this.clockStart = null;
+    const e = this.engine as (Engine & Partial<EngineExtras>) | null;
+    if (e && this.initialScene) {
+      try {
+        if (e.setScene) e.setScene(this.initialScene);
+        e.resetView?.();
+      } catch (err) {
+        console.warn("[studio] new room failed", err);
+      }
+    }
+    this.emit();
   }
 
   setVerifyEnabled(on: boolean) {
@@ -315,8 +382,24 @@ export class TaskManager {
       this.failPatch(task.id, seq, "engine not ready");
       return task.id;
     }
+    // PatchRequest.image: a canvas screenshot, only while it stays cheap (< 50 ms); ?shot=0 disables it.
+    let image: string | undefined;
+    if (this.shotCheap && this.engine) {
+      const t0 = now();
+      try {
+        image = this.engine.screenshot() || undefined;
+      } catch {
+        image = undefined;
+      }
+      const dt = now() - t0;
+      if (dt > 50) {
+        this.shotSlow++;
+        if (this.shotSlow >= 2) this.shotCheap = false; // one slow frame can be a hiccup; two means skip it
+        image = undefined;
+      }
+    }
     api
-      .patch({ scene, history, utterance }, abort.signal)
+      .patch({ scene, history, utterance, ...(image ? { image } : {}) }, abort.signal)
       .then((res) => this.onPatchReturn(task.id, seq, res))
       .catch((err: unknown) => {
         if (abort.signal.aborted) return; // cancel() already settled it
@@ -340,6 +423,7 @@ export class TaskManager {
       status: waiting ? "held" : t.status,
       statusLine: waiting ? `holding ${ops.length} op${ops.length === 1 ? "" : "s"} for earlier command` : "applying",
       targetId: pickTarget(ops),
+      model: res.model || undefined,
     });
     this.patchMs.push(ms);
     if (res.say && res.say.trim()) {
@@ -407,7 +491,8 @@ export class TaskManager {
             ? `${n} op${n === 1 ? "" : "s"} applied · ${res.model || "orchestrator"}`
             : res.say?.trim() || "no change",
         });
-        if (n) this.verify(taskId, t.utterance ?? "");
+        // Patches that hand off jobs are verified when the job lands (a placeholder would score low).
+        if (n && !res.jobs.length) this.verify(taskId, t.utterance ?? "");
       }
       internal?.resolveApplied?.(ok);
     }
@@ -447,6 +532,120 @@ export class TaskManager {
     const applied = parent?.applied ?? Promise.resolve(true);
     if (job.kind === "asset") this.runAsset(task.id, job, abort, applied, key);
     else this.runDecal(task.id, job, abort, applied, key);
+
+    // Shop the look: only for a NEWLY ADDED custom object (not rebuilds / moves / recolours).
+    if (
+      job.kind === "asset" &&
+      this.shopEnabled &&
+      this.api?.source &&
+      ops.some((op) => op.op === "add" && op.id === job.objectId) &&
+      !this.shop.some((g) => g.objectId === job.objectId)
+    ) {
+      this.startSource(job, parentId, at, parentLane, applied);
+    }
+  }
+
+  private startSource(job: Extract<Job, { kind: "asset" }>, parentId: string, at: number, parentLane: number, applied: Promise<boolean>) {
+    const parent = this.internals.get(parentId);
+    const abort = new AbortController();
+    const task = this.addTask(
+      {
+        id: uid("s"),
+        kind: "source",
+        title: `Shop: ${job.name}`,
+        parentId,
+        targetId: job.objectId,
+        startAt: at,
+        status: "running",
+        statusLine: "dispatching sourcing agent…",
+      },
+      [parentLane],
+    );
+    this.internals.set(task.id, { task, abort });
+    parent?.children?.push(task.id);
+    const group: ShopGroup = { objectId: job.objectId, name: job.name, taskId: task.id, status: "running", statusLine: "searching…", products: [] };
+    this.shop.push(group);
+    this.emit();
+    void this.runSource(task.id, group, job, abort, applied);
+  }
+
+  private async runSource(
+    taskId: string,
+    group: ShopGroup,
+    job: Extract<Job, { kind: "asset" }>,
+    abort: AbortController,
+    applied: Promise<boolean>,
+  ) {
+    let products: Product[] | null = null;
+    let errorMsg: string | null = null;
+    let model = "";
+    try {
+      if (!this.api?.source) throw new Error("sourcing not available");
+      await this.api.source({ objectId: job.objectId, name: job.name, description: job.description }, abort.signal, (e: SourceEvent) => {
+        if (!this.isLive(taskId)) return;
+        if (e.type === "status") {
+          group.statusLine = e.text;
+          this.update(taskId, { statusLine: e.text });
+        } else if (e.type === "done") {
+          products = Array.isArray(e.products) ? e.products : [];
+          model = e.model || "";
+        } else if (e.type === "error") errorMsg = e.message || "sourcing error";
+      });
+    } catch (err) {
+      if (abort.signal.aborted) return;
+      errorMsg = errMsg(err);
+    }
+    if (!this.isLive(taskId)) return;
+    const end = now();
+    const t = this.tasks.find((x) => x.id === taskId)!;
+    const ms = Math.round(end - t.startAt);
+    const parentOk = await applied;
+    if (!this.isLive(taskId)) return;
+    const found = (products ?? []) as Product[];
+    if (!parentOk) {
+      this.update(taskId, { status: "cancelled", endAt: end, ms, statusLine: "parent command did not apply" });
+      this.shop = this.shop.filter((g) => g !== group);
+    } else if (errorMsg || !found.length) {
+      const msg = errorMsg ?? "no products found";
+      group.status = "failed";
+      group.statusLine = msg;
+      this.update(taskId, { status: "failed", endAt: end, ms, statusLine: msg, error: msg });
+      this.log("source", `shop ${job.objectId} FAILED: ${msg}`, ms);
+    } else {
+      group.status = "done";
+      group.products = found.slice(0, 3);
+      group.statusLine = "";
+      group.model = model;
+      this.update(taskId, {
+        status: "done",
+        endAt: end,
+        ms,
+        statusLine: `${group.products.length} product${group.products.length === 1 ? "" : "s"} found${model ? ` · ${model}` : ""}`,
+      });
+      this.log("source", `shop ${job.objectId}: ${group.products.length} products${model ? ` (${model})` : ""}`, ms);
+    }
+    this.emit();
+  }
+
+  /** Drop product groups whose object has left the scene (only after it was seen there once). */
+  private pruneShop(s: Scene) {
+    if (!this.shop.length) return;
+    const ids = new Set(s.objects.map((o) => o.id));
+    for (const g of this.shop.slice()) {
+      if (ids.has(g.objectId)) {
+        this.shopSeen.add(g.objectId);
+        continue;
+      }
+      if (!this.shopSeen.has(g.objectId)) continue;
+      this.shopSeen.delete(g.objectId);
+      this.shop = this.shop.filter((x) => x !== g);
+      const t = this.tasks.find((x) => x.id === g.taskId);
+      if (t && t.status === "running") {
+        const end = now();
+        this.update(t.id, { status: "cancelled", endAt: end, ms: Math.round(end - t.startAt), statusLine: "object removed" });
+        this.internals.get(t.id)?.abort.abort();
+      }
+    }
   }
 
   private supersede(taskId: string) {
@@ -473,7 +672,8 @@ export class TaskManager {
     applied: Promise<boolean>,
     key: string,
   ) {
-    const currentCode = this.assetCode.get(job.objectId);
+    const ex = this.engine as (Engine & Partial<EngineExtras>) | null;
+    const currentCode = ex?.getAssetCode?.(job.objectId) ?? this.assetCode.get(job.objectId);
     let doneEvent: Extract<AssetEvent, { type: "done" }> | null = null;
     let errorMsg: string | null = null;
     let statusCount = 0;
@@ -527,7 +727,7 @@ export class TaskManager {
     }
     let result: { ok: boolean; error?: string } = { ok: false, error: "engine not ready" };
     try {
-      if (this.engine) result = this.engine.setAssetCode(job.objectId, done.code);
+      if (this.engine) result = (this.engine as Engine & EngineExtras).setAssetCode(job.objectId, done.code, job.description);
     } catch (err) {
       result = { ok: false, error: errMsg(err) };
     }
@@ -536,6 +736,11 @@ export class TaskManager {
       const msg = `model rejected: ${result.error ?? "unknown error"}`;
       this.update(taskId, { status: "failed", endAt: end, ms, statusLine: msg, error: msg });
       this.log("asset", `asset ${job.objectId} REJECTED: ${result.error ?? ""}`, ms);
+    } else if (this.isStale(job.objectId, job.description)) {
+      // the object changed (undo / newer request) while this was building: the engine cached it but shows the current one
+      const lines = done.code.split("\n").length;
+      this.update(taskId, { status: "done", endAt: end, ms, statusLine: `model cached, not shown (object changed since) · ${lines} lines` });
+      this.log("asset", `cached ${job.objectId} (stale, ${lines} lines, ${done.via})`, ms);
     } else {
       this.assetCode.set(job.objectId, done.code);
       const lines = done.code.split("\n").length;
@@ -604,6 +809,15 @@ export class TaskManager {
     this.finishJob(key, taskId);
   }
 
+  private isStale(objectId: string, description: string): boolean {
+    try {
+      const o = this.engine?.getScene().objects.find((x) => x.id === objectId);
+      return !!o && (o.description ?? "") !== description;
+    } catch {
+      return false;
+    }
+  }
+
   private safe(fn: () => void) {
     try {
       fn();
@@ -629,6 +843,15 @@ export class TaskManager {
     internal.abort.abort();
     if (t.kind === "asset" && t.targetId) this.safe(() => this.engine?.setAssetFailed(t.targetId!));
     if (t.kind === "decal" && t.targetId) this.safe(() => this.engine?.setDecalFailed(t.targetId!));
+    if (t.kind === "source") {
+      const g = this.shop.find((x) => x.taskId === taskId);
+      if (g) {
+        g.status = "cancelled";
+        g.statusLine = "cancelled";
+      }
+      this.emit();
+      return;
+    }
     const key = `${t.kind}:${t.targetId}`;
     this.finishJob(key, taskId);
   }
@@ -647,7 +870,8 @@ export class TaskManager {
         const r = res?.results?.[taskId];
         if (!r || typeof r.yes !== "number") throw new Error("no result");
         const score = Math.max(0, Math.min(1, r.yes));
-        const state = score >= 0.75 ? "ok" : score >= 0.4 ? "unsure" : "mismatch";
+        // yes >= 0.5 is the cutoff; scores are soft (true claims ~0.6), so only very low scores read as mismatch.
+        const state = score >= 0.5 ? "ok" : score >= 0.25 ? "unsure" : "mismatch";
         this.update(taskId, { verify: { state, score } });
       } catch {
         this.update(taskId, { verify: { state: "error" } });
@@ -684,6 +908,7 @@ function decalName(job: Extract<Job, { kind: "decal" }>, ops: Op[], engine: Engi
 }
 
 function errMsg(err: unknown): string {
+  if (err instanceof TypeError && /fetch|network/i.test(err.message)) return "server unreachable";
   if (err instanceof Error) return err.message || err.name;
   return String(err);
 }

@@ -8,6 +8,7 @@ export const HUES = {
   patch: "#6f90bd",
   asset: "#8270c0",
   decal: "#4fa39a",
+  source: "#c9934a",
 } as const;
 
 const PX_PER_S = 21;
@@ -117,19 +118,28 @@ export function Timeline({ manager }: { manager: TaskManager }) {
       const gap = Math.min(LANE_GAP, (h - BASE_Y - FIRST_LANE - 8) / Math.max(1, maxLane));
       const laneY = (lane: number) => BASE_Y + FIRST_LANE + lane * gap;
 
+      // A patch stays on the strip while any job it handed off is still visible, so the hand-off keeps reading.
+      const fadeFrom = new Map<string, number>();
+      for (const k of tasks) {
+        const e = k.endAt ?? Infinity;
+        fadeFrom.set(k.id, Math.max(fadeFrom.get(k.id) ?? -Infinity, e));
+        if (k.parentId) fadeFrom.set(k.parentId, Math.max(fadeFrom.get(k.parentId) ?? -Infinity, e));
+      }
+      const fadeAt = (k: Task) => fadeFrom.get(k.id) ?? k.endAt ?? Infinity;
+
       const hits: Hit[] = [];
       const hoverId = tipIdRef.current;
       // draw children after parents so the hand-off reads left-to-right; draw running on top
       const order = tasks
         .filter((k) => {
           if (k.endAt == null) return true;
-          return t - k.endAt < HOLD_MS + FADE_MS;
+          return t - fadeAt(k) < HOLD_MS + FADE_MS;
         })
         .sort((a, b) => (a.endAt == null ? 1 : 0) - (b.endAt == null ? 1 : 0) || a.startAt - b.startAt);
 
       for (const k of order) {
         const ended = k.endAt != null;
-        const alpha = ended ? clamp01(1 - (t - k.endAt! - HOLD_MS) / FADE_MS) : 1;
+        const alpha = ended ? clamp01(1 - (t - fadeAt(k) - HOLD_MS) / FADE_MS) : 1;
         if (alpha <= 0) continue;
         const x0 = xOf(k.startAt);
         const x1 = Math.max(x0, ended ? xOf(k.endAt!) : nowX);
@@ -276,6 +286,7 @@ function TimelineTip({ tip, manager }: { tip: { x: number; y: number; w: number;
         {fmtMs(ms)}
         {live.endAt == null ? "…" : ""}
         {live.status !== "running" && live.status !== "done" ? ` · ${live.status}` : ""}
+        {live.kind === "patch" && live.model ? ` · ${live.model}` : ""}
       </span>
     </div>
   );

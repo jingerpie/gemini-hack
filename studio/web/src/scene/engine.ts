@@ -1207,7 +1207,9 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     },
 
     getAssetCode(objectId) {
-      return latestCode.get(objectId)?.code;
+      // the code of the model for the object's CURRENT description (after undo, latestCode may be a stale newer build)
+      const o = scene.objects.find((x) => x.id === objectId);
+      return (o ? codeByKey.get(cacheKey(objectId, o.description))?.code : undefined) ?? latestCode.get(objectId)?.code;
     },
 
     setAssetFailed(objectId) {

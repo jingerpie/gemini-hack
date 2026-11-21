@@ -12,6 +12,7 @@
   --patch: #6f90bd;
   --asset: #8270c0;
   --decal: #4fa39a;
+  --source: #c9934a;
   --ok: #5fb38a;
   --warn: #d2a04f;
   --bad: #d0605a;
@@ -343,7 +344,7 @@ kbd {
 
 .dock-row {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(240px, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   height: 48px;
@@ -449,10 +450,15 @@ kbd {
 
 .legend {
   justify-self: end;
-  display: flex;
-  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 14px;
+  row-gap: 3px;
   padding-right: 4px;
-  font-size: 11px;
+  font-size: 10.5px;
+  line-height: 1.25;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -460,6 +466,9 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dot {
@@ -956,4 +965,194 @@ kbd {
   .legend span:not(:first-child) {
     display: none;
   }
+}
+
+/* ---------- source (shop the look) ---------- */
+.dot-source {
+  background: var(--source);
+}
+.card.st-running.card-source {
+  box-shadow: inset 2px 0 0 var(--source);
+}
+.card-source .card-progress {
+  background-image: linear-gradient(90deg, transparent, var(--source), transparent);
+}
+.op-source .op-text {
+  color: #e2c597;
+}
+.toggle-shop.on .toggle-track {
+  background: var(--source);
+}
+.shop-panel {
+  flex: 1.1 1 0;
+  min-height: 150px;
+}
+.shop-panel .panel-head h2 .dot {
+  width: 7px;
+  height: 7px;
+}
+.shop {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.shop-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 6px;
+}
+.shop-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+.shop-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.shop-status.bad {
+  color: var(--bad);
+}
+.shop-items {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.product {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px;
+  border-radius: 9px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  text-decoration: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+a.product:hover {
+  border-color: color-mix(in srgb, var(--source) 60%, transparent);
+  background: #1c1e24;
+}
+.product-img {
+  display: block;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f2f1ee;
+}
+.product-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.product-ph {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: #22252c;
+  color: var(--faint);
+}
+.product-title {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  min-height: 2.6em;
+}
+.product-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10.5px;
+  min-width: 0;
+}
+.product-meta b {
+  color: #e2c597;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.product-meta span {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shop-panel:not(.has-products) {
+  flex: none;
+  min-height: 0;
+}
+.shop-panel:not(.has-products) .shop {
+  max-height: 120px;
+}
+.shop-name {
+  flex: none;
+  max-width: 55%;
+}
+
+.chip-detail {
+  margin-left: 6px;
+  padding-left: 7px;
+  border-left: 1px solid var(--line-2);
+  color: var(--muted);
+  font-size: 10.5px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- compact heights (1280x720 etc.) ---------- */
+.shop-panel.has-products {
+  flex: 0 0 auto;
+}
+@media (max-height: 860px) {
+  .product-img {
+    aspect-ratio: 4 / 3;
+  }
+  .ops-panel.open {
+    flex: 0.5 1 0;
+  }
+  .shop {
+    padding: 6px 8px 8px;
+  }
+}
+@media (max-width: 1400px) {
+  .legend {
+    font-size: 10px;
+    column-gap: 10px;
+  }
+  .dock-row {
+    grid-template-columns: minmax(200px, 1fr) auto minmax(0, 1fr);
+  }
+}
+.ops-panel {
+  min-height: 72px;
 }

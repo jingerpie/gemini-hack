@@ -64,6 +64,9 @@ export function Dock({ chip, listening, levelRef, onToggle, onSend }: Props) {
         <span>
           <i className="dot dot-decal" /> image · nano-banana
         </span>
+        <span>
+          <i className="dot dot-source" /> sourcing agent · antigravity + google search
+        </span>
       </div>
     </div>
   );
