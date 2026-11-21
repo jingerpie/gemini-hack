@@ -2,7 +2,7 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const W = 0.90;
+  const W = 0.61;
   const H = 2.15;
   const D = 0.60;
 
@@ -106,7 +106,6 @@ function build(THREE) {
   const outerW = DOOR_W - HANDLE_W;
 
   // Left door (x < 0, handle notch on inner/right edge)
-  const leftDoorCenterX = -GAP / 2 - DOOR_W / 2;
   const leftOuterX = -GAP / 2 - HANDLE_W - outerW / 2;
 
   addMesh(

@@ -2,23 +2,24 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const W = 1.35;           // Overall width
-  const D = 0.75;           // Overall depth
-  const H = 0.38;           // Overall height
-  const TOP_T = 0.036;      // Top thickness
-  const TOP_R = 0.14;       // Top corner radius
+  const BEVEL = 0.003;
+  const W = 1.10 - BEVEL * 2; // Overall width = 1.10 m (110 cm)
+  const D = 0.68;             // Overall depth
+  const H = 0.38;             // Overall height
+  const TOP_T = 0.036;        // Top thickness
+  const TOP_R = 0.12;         // Top corner radius
 
-  const SHELF_W = 1.21;     // Lower shelf width
-  const SHELF_D = 0.65;     // Lower shelf depth
-  const SHELF_T = 0.030;    // Lower shelf thickness
-  const SHELF_R = 0.11;     // Lower shelf corner radius
-  const SHELF_Y = 0.085;    // Bottom of lower shelf
+  const SHELF_W = 0.98;       // Lower shelf width
+  const SHELF_D = 0.58;       // Lower shelf depth
+  const SHELF_T = 0.030;      // Lower shelf thickness
+  const SHELF_R = 0.095;      // Lower shelf corner radius
+  const SHELF_Y = 0.085;      // Bottom of lower shelf
 
-  const LEG_T = 0.012;      // Metal bar thickness
-  const LEG_W = 0.055;      // Metal bar width
-  const INNER_LEG_X = 0.34; // X offset for front/back vertical bars
-  const INNER_LEG_Z = D / 2 - 0.065;
-  const END_LEG_X = W / 2 - 0.042;
+  const LEG_T = 0.012;        // Metal bar thickness
+  const LEG_W = 0.050;        // Metal bar width
+  const INNER_LEG_X = 0.275;  // X offset for front/back vertical bars
+  const INNER_LEG_Z = D / 2 - 0.060;
+  const END_LEG_X = W / 2 - 0.036;
   const GLIDE_H = 0.004;
 
   // Materials
@@ -56,17 +57,16 @@ function build(THREE) {
     shape.lineTo(-hw, -hd + r);
     shape.quadraticCurveTo(-hw, -hd, -hw + r, -hd);
 
-    const bevel = 0.003;
     const geom = new THREE.ExtrudeGeometry(shape, {
-      depth: thickness - bevel * 2,
+      depth: thickness - BEVEL * 2,
       bevelEnabled: true,
-      bevelThickness: bevel,
-      bevelSize: bevel,
+      bevelThickness: BEVEL,
+      bevelSize: BEVEL,
       bevelSegments: 2,
       curveSegments: 16,
     });
     geom.rotateX(-Math.PI / 2);
-    geom.translate(0, bevel, 0);
+    geom.translate(0, BEVEL, 0);
     return geom;
   }
 
@@ -95,7 +95,7 @@ function build(THREE) {
   addMesh(endLegGeom, metalMat, 'right_end_leg', END_LEG_X, GLIDE_H + endLegH / 2, 0);
 
   // 4. Horizontal bottom feet under end legs
-  const footLen = 0.14;
+  const footLen = 0.12;
   const footGeom = new THREE.BoxGeometry(footLen, LEG_T, LEG_W);
   addMesh(footGeom, metalMat, 'left_end_foot', -END_LEG_X + footLen / 2 - LEG_W / 2, GLIDE_H + LEG_T / 2, 0);
   addMesh(footGeom, metalMat, 'right_end_foot', END_LEG_X - footLen / 2 + LEG_W / 2, GLIDE_H + LEG_T / 2, 0);

@@ -2,7 +2,7 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Dimensions (meters)
-  const W = 1.05;
+  const W = 0.594;
   const D = 0.45;
   const H = 1.85;
 

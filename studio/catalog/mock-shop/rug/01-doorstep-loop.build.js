@@ -2,8 +2,8 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const W = 0.72;        // total width (X)
-  const D = 1.06;        // total depth/length (Z)
+  const W = 0.60;        // total width (X)
+  const D = 0.90;        // total depth/length (Z)
   const H = 0.016;       // total thickness (Y)
   const BEVEL = 0.002;   // bevel thickness for braided ridge effect
   const BEVEL_SIZE = 0.0015;

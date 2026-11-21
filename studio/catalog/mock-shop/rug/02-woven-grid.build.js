@@ -1,9 +1,9 @@
 function build(THREE) {
   const group = new THREE.Group();
 
-  // Real-world dimensions (meters): 1.8m x 2.7m area rug (6' x 9')
-  const W = 1.8;
-  const D = 2.7;
+  // Real-world dimensions (meters): 1.2m x 1.8m area rug (120 x 180 cm)
+  const W = 1.2;
+  const D = 1.8;
   const H = 0.012;
   const EDGE_W = 0.018;
   const EDGE_H = 0.014;

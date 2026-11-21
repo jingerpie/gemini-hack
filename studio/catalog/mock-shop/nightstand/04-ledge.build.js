@@ -2,7 +2,7 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const W = 0.56;          // Width
+  const W = 0.35;          // Width (overall width along x = 35 cm)
   const H = 0.18;          // Height
   const D = 0.34;          // Depth
   const T = 0.018;         // Wood panel thickness

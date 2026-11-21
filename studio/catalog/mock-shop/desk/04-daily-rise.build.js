@@ -2,16 +2,16 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const W = 1.20;
-  const D = 0.70;
+  const W = 1.10;
+  const D = 0.60;
   const H = 0.75;
   const TOP_THICK = 0.026;
   const TOP_SURFACE_THICK = 0.003;
   const CORNER_R = 0.025;
 
-  const LEG_X = 0.46;
+  const LEG_X = 0.415;
   const GLIDE_H = 0.006;
-  const FOOT_LEN = 0.62;
+  const FOOT_LEN = 0.54;
   const FOOT_W = 0.068;
   const FOOT_H = 0.018;
 
@@ -27,7 +27,7 @@ function build(THREE) {
 
   const BRACKET_W = 0.044;
   const BRACKET_H = 0.024;
-  const BRACKET_LEN = 0.54;
+  const BRACKET_LEN = 0.46;
 
   // Materials
   const matGreyTop = new THREE.MeshStandardMaterial({
@@ -158,7 +158,7 @@ function build(THREE) {
   const ctrlW = 0.115;
   const ctrlH = 0.020;
   const ctrlD = 0.042;
-  const ctrlX = 0.24;
+  const ctrlX = 0.21;
   const ctrlY = H - TOP_THICK - ctrlH / 2 + 0.002;
   const ctrlZ = D / 2 - 0.035;
 

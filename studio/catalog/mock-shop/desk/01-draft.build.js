@@ -2,18 +2,19 @@ function build(THREE) {
   const group = new THREE.Group();
 
   // Real-world dimensions (meters)
-  const W = 1.35;
+  const W = 1.20;
   const D = 0.65;
   const H = 0.75;
   const TOP_T = 0.026;
   const TOP_R = 0.012;
+  const BEVEL_SIZE = 0.002;
   const OVERHANG = 0.014;
   const APRON_H = 0.068;
   const APRON_T = 0.024;
   const LEG_TOP_W = 0.048;
   const LEG_BOT_W = 0.028;
   const LEG_H = H - TOP_T;
-  const DRAWER_W = 0.52;
+  const DRAWER_W = 0.46;
   const SEAM_W = 0.0025;
 
   // Materials
@@ -40,25 +41,27 @@ function build(THREE) {
     return mesh;
   }
 
-  // 1. Tabletop with rounded corners
+  // 1. Tabletop with rounded corners (account for bevelSize so total width == W)
   const topShape = new THREE.Shape();
-  const hw = W / 2 - TOP_R;
-  const hd = D / 2 - TOP_R;
-  topShape.moveTo(-hw, -D / 2);
-  topShape.lineTo(hw, -D / 2);
-  topShape.quadraticCurveTo(W / 2, -D / 2, W / 2, -hd);
-  topShape.lineTo(W / 2, hd);
-  topShape.quadraticCurveTo(W / 2, D / 2, hw, D / 2);
-  topShape.lineTo(-hw, D / 2);
-  topShape.quadraticCurveTo(-W / 2, D / 2, -W / 2, hd);
-  topShape.lineTo(-W / 2, -hd);
-  topShape.quadraticCurveTo(-W / 2, -D / 2, -hw, -D / 2);
+  const topW = W - BEVEL_SIZE * 2;
+  const topD = D - BEVEL_SIZE * 2;
+  const hw = topW / 2 - TOP_R;
+  const hd = topD / 2 - TOP_R;
+  topShape.moveTo(-hw, -topD / 2);
+  topShape.lineTo(hw, -topD / 2);
+  topShape.quadraticCurveTo(topW / 2, -topD / 2, topW / 2, -hd);
+  topShape.lineTo(topW / 2, hd);
+  topShape.quadraticCurveTo(topW / 2, topD / 2, hw, topD / 2);
+  topShape.lineTo(-hw, topD / 2);
+  topShape.quadraticCurveTo(-topW / 2, topD / 2, -topW / 2, hd);
+  topShape.lineTo(-topW / 2, -hd);
+  topShape.quadraticCurveTo(-topW / 2, -topD / 2, -hw, -topD / 2);
 
   const topGeo = new THREE.ExtrudeGeometry(topShape, {
     depth: TOP_T,
     bevelEnabled: true,
-    bevelThickness: 0.002,
-    bevelSize: 0.002,
+    bevelThickness: BEVEL_SIZE,
+    bevelSize: BEVEL_SIZE,
     bevelSegments: 2,
     curveSegments: 8
   });
@@ -66,7 +69,7 @@ function build(THREE) {
   addMesh(topGeo, oakMat, 'tabletop_main', 0, LEG_H, 0);
 
   // 2. Cable management hatch on back-center of tabletop
-  const hatchW = 0.28;
+  const hatchW = 0.25;
   const hatchD = 0.11;
   const hatchZ = -D / 2 + 0.11;
   const hatchY = H + 0.0015;

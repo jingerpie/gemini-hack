@@ -1,13 +1,17 @@
 function build(THREE) {
   const group = new THREE.Group();
 
-  // Real-world dimensions (meters)
-  const W = 1.60;
-  const D = 2.20;
-  const THICK = 0.012;
-  const FRINGE_L = 0.075;
+  // Real-world dimensions (meters) - 80 x 150 cm including fringes
+  const W = 0.80;
+  const FRINGE_L = 0.05;
+  const FRINGE_OVERLAP = 0.005;
+  const D = 1.50 - 2 * (FRINGE_L - FRINGE_OVERLAP); // 1.41 m
+  const THICK = 0.010;
   const LAYER_H = 0.002;
   const LAYER_Y = THICK - 0.0005;
+
+  const sx = W / 1.60;
+  const sz = D / 2.20;
 
   // Materials (matte woven wool/cotton)
   const matTeal = new THREE.MeshStandardMaterial({
@@ -54,17 +58,18 @@ function build(THREE) {
   addMesh(baseGeo, matTeal, "rug_base", 0, THICK / 2, 0);
 
   // 2. End bands (ochre edge bands + burnt orange inner stripes)
-  const endBandGeo = new THREE.BoxGeometry(W, LAYER_H, 0.035);
-  addMesh(endBandGeo, matOchre, "band_ochre_front", 0, LAYER_Y, D / 2 - 0.0175);
-  addMesh(endBandGeo, matOchre, "band_ochre_back", 0, LAYER_Y, -D / 2 + 0.0175);
+  const bandD = 0.035 * sz;
+  const endBandGeo = new THREE.BoxGeometry(W, LAYER_H, bandD);
+  addMesh(endBandGeo, matOchre, "band_ochre_front", 0, LAYER_Y, D / 2 - bandD / 2);
+  addMesh(endBandGeo, matOchre, "band_ochre_back", 0, LAYER_Y, -D / 2 + bandD / 2);
 
-  const stripeGeo = new THREE.BoxGeometry(W - 0.08, LAYER_H, 0.035);
-  addMesh(stripeGeo, matOrange, "band_orange_front", 0, LAYER_Y, D / 2 - 0.095);
-  addMesh(stripeGeo, matOrange, "band_orange_back", 0, LAYER_Y, -D / 2 + 0.095);
+  const stripeGeo = new THREE.BoxGeometry(W - 0.08 * sx, LAYER_H, bandD);
+  addMesh(stripeGeo, matOrange, "band_orange_front", 0, LAYER_Y, D / 2 - 0.095 * sz);
+  addMesh(stripeGeo, matOrange, "band_orange_back", 0, LAYER_Y, -D / 2 + 0.095 * sz);
 
   // 3. Fringes at +Z and -Z using ExtrudeGeometry comb profile
   const fringeShape = new THREE.Shape();
-  const teeth = 36;
+  const teeth = 28;
   const toothW = W / teeth;
   fringeShape.moveTo(-W / 2, 0);
   for (let i = 0; i < teeth; i++) {
@@ -75,30 +80,30 @@ function build(THREE) {
     fringeShape.lineTo(x0 + toothW * 0.75, 0);
   }
   fringeShape.lineTo(W / 2, 0);
-  fringeShape.lineTo(W / 2, -0.01);
-  fringeShape.lineTo(-W / 2, -0.01);
+  fringeShape.lineTo(W / 2, -0.008);
+  fringeShape.lineTo(-W / 2, -0.008);
   fringeShape.closePath();
 
   const fringeGeo = new THREE.ExtrudeGeometry(fringeShape, {
-    depth: 0.005,
+    depth: 0.004,
     bevelEnabled: false,
   });
   fringeGeo.rotateX(Math.PI / 2);
 
-  addMesh(fringeGeo, matCream, "fringe_front", 0, 0.006, D / 2 - 0.005);
-  const fringeBack = addMesh(fringeGeo, matCream, "fringe_back", 0, 0.006, -D / 2 + 0.005);
+  addMesh(fringeGeo, matCream, "fringe_front", 0, 0.005, D / 2 - FRINGE_OVERLAP);
+  const fringeBack = addMesh(fringeGeo, matCream, "fringe_back", 0, 0.005, -D / 2 + FRINGE_OVERLAP);
   fringeBack.rotation.y = Math.PI;
 
   // 4. Center column cream zigzag borders
   function makeZigzag(xSign) {
     const shape = new THREE.Shape();
-    const zSpan = D - 0.34;
+    const zSpan = D - 0.34 * sz;
     const zStart = -zSpan / 2;
     const segs = 6;
     const dz = zSpan / segs;
-    const xIn = 0.13 * xSign;
-    const xOut = 0.23 * xSign;
-    const thickX = 0.055 * xSign;
+    const xIn = 0.13 * sx * xSign;
+    const xOut = 0.23 * sx * xSign;
+    const thickX = 0.055 * sx * xSign;
 
     shape.moveTo(xIn, zStart);
     for (let i = 0; i < segs; i++) {
@@ -130,18 +135,18 @@ function build(THREE) {
   addMesh(makeZigzag(1), matCream, "center_cream_right", 0, LAYER_Y + LAYER_H, 0);
 
   // 5. Diamond motifs (3 rows along Z)
-  const zPositions = [-0.58, 0, 0.58];
+  const zPositions = [-0.58 * sz, 0, 0.58 * sz];
   const xColumns = [
-    { name: "left", x: -0.50 },
-    { name: "right", x: 0.50 },
+    { name: "left", x: -0.50 * sx },
+    { name: "right", x: 0.50 * sx },
   ];
 
-  const brownDiaGeo = new THREE.BoxGeometry(0.32, LAYER_H, 0.32);
-  const orangeDiaGeo = new THREE.BoxGeometry(0.21, LAYER_H, 0.21);
-  const ochreDiaGeo = new THREE.BoxGeometry(0.11, LAYER_H, 0.11);
+  const brownDiaGeo = new THREE.BoxGeometry(0.32 * sx, LAYER_H, 0.32 * sx);
+  const orangeDiaGeo = new THREE.BoxGeometry(0.21 * sx, LAYER_H, 0.21 * sx);
+  const ochreDiaGeo = new THREE.BoxGeometry(0.11 * sx, LAYER_H, 0.11 * sx);
 
-  const centerBrownGeo = new THREE.BoxGeometry(0.26, LAYER_H, 0.26);
-  const centerOrangeGeo = new THREE.BoxGeometry(0.14, LAYER_H, 0.14);
+  const centerBrownGeo = new THREE.BoxGeometry(0.26 * sx, LAYER_H, 0.26 * sx);
+  const centerOrangeGeo = new THREE.BoxGeometry(0.14 * sx, LAYER_H, 0.14 * sx);
 
   for (let i = 0; i < zPositions.length; i++) {
     const zp = zPositions[i];
@@ -161,11 +166,11 @@ function build(THREE) {
   }
 
   // 6. Ochre accent dots between columns
-  const dotGeo = new THREE.CylinderGeometry(0.055, 0.055, LAYER_H, 6);
-  const dotZ = [-0.29, 0.29, 0.84];
+  const dotGeo = new THREE.CylinderGeometry(0.055 * sx, 0.055 * sx, LAYER_H, 6);
+  const dotZ = [-0.29 * sz, 0.29 * sz, 0.84 * sz];
   for (let i = 0; i < dotZ.length; i++) {
-    addMesh(dotGeo, matOchre, "dot_left_" + (i + 1), -0.27, LAYER_Y, dotZ[i]);
-    addMesh(dotGeo, matOchre, "dot_right_" + (i + 1), 0.27, LAYER_Y, dotZ[i]);
+    addMesh(dotGeo, matOchre, "dot_left_" + (i + 1), -0.27 * sx, LAYER_Y, dotZ[i]);
+    addMesh(dotGeo, matOchre, "dot_right_" + (i + 1), 0.27 * sx, LAYER_Y, dotZ[i]);
   }
 
   return group;

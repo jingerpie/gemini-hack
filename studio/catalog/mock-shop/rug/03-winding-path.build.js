@@ -1,8 +1,8 @@
 function build(THREE) {
   const group = new THREE.Group();
 
-  const W = 1.60;
-  const D = 2.30;
+  const W = 1.20;
+  const D = 1.80;
   const BASE_H = 0.010;
   const PILE_H = 0.012;
   const EDGE_W = 0.018;
@@ -107,19 +107,19 @@ function build(THREE) {
     return geo;
   }
 
-  const bandThick = 0.085;
-  const bandGap = 0.035;
+  const bandThick = 0.064;
+  const bandGap = 0.026;
   const archRadii = [
-    0.14,
-    0.14 + bandThick + bandGap,
-    0.14 + (bandThick + bandGap) * 2,
+    0.105,
+    0.105 + bandThick + bandGap,
+    0.105 + (bandThick + bandGap) * 2,
   ];
 
   // 4. Bottom (+Z) nested arches
   archRadii.forEach((r, i) => {
-    const legLen = 0.34;
+    const legLen = 0.265;
     const mesh = new THREE.Mesh(createArchBand(r, bandThick, legLen), matTufted);
-    mesh.position.set(-0.18, BASE_H - 0.002, D / 2 - EDGE_W - legLen);
+    mesh.position.set(-0.135, BASE_H - 0.002, D / 2 - EDGE_W - legLen);
     mesh.name = `tufted_arch_bottom_${i + 1}`;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -128,10 +128,10 @@ function build(THREE) {
 
   // 5. Top (-Z) nested arches
   archRadii.forEach((r, i) => {
-    const legLen = 0.28;
+    const legLen = 0.218;
     const mesh = new THREE.Mesh(createArchBand(r, bandThick, legLen), matTufted);
     mesh.rotation.y = Math.PI;
-    mesh.position.set(0.18, BASE_H - 0.002, -D / 2 + EDGE_W + legLen);
+    mesh.position.set(0.135, BASE_H - 0.002, -D / 2 + EDGE_W + legLen);
     mesh.name = `tufted_arch_top_${i + 1}`;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -140,10 +140,10 @@ function build(THREE) {
 
   // 6. Left (-X) nested arches
   archRadii.forEach((r, i) => {
-    const legLen = 0.24;
+    const legLen = 0.18;
     const mesh = new THREE.Mesh(createArchBand(r, bandThick, legLen), matTufted);
     mesh.rotation.y = -Math.PI / 2;
-    mesh.position.set(-W / 2 + EDGE_W + legLen, BASE_H - 0.002, -0.22);
+    mesh.position.set(-W / 2 + EDGE_W + legLen, BASE_H - 0.002, -0.172);
     mesh.name = `tufted_arch_left_${i + 1}`;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -152,10 +152,10 @@ function build(THREE) {
 
   // 7. Right (+X) nested arches
   archRadii.forEach((r, i) => {
-    const legLen = 0.24;
+    const legLen = 0.18;
     const mesh = new THREE.Mesh(createArchBand(r, bandThick, legLen), matTufted);
     mesh.rotation.y = Math.PI / 2;
-    mesh.position.set(W / 2 - EDGE_W - legLen, BASE_H - 0.002, 0.22);
+    mesh.position.set(W / 2 - EDGE_W - legLen, BASE_H - 0.002, 0.172);
     mesh.name = `tufted_arch_right_${i + 1}`;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -194,7 +194,7 @@ function build(THREE) {
   }
 
   const windingLeft = new THREE.Mesh(
-    createWindingStrip(-0.08, -D * 0.42, D * 0.42, 0.14),
+    createWindingStrip(-0.06, -D * 0.42, D * 0.42, 0.105),
     matTufted
   );
   windingLeft.position.set(0, BASE_H - 0.002, 0);
@@ -204,7 +204,7 @@ function build(THREE) {
   group.add(windingLeft);
 
   const windingRight = new THREE.Mesh(
-    createWindingStrip(0.08, -D * 0.42, D * 0.42, 0.14),
+    createWindingStrip(0.06, -D * 0.42, D * 0.42, 0.105),
     matTufted
   );
   windingRight.position.set(0, BASE_H - 0.002, 0);
