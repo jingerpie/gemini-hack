@@ -1,8 +1,16 @@
 // Photoreal render shown over the 3D view, with a draggable before/after split.
 // The 3D room underneath stays the source of truth; closing the overlay leaves it untouched and editable.
+import { Button } from "@gemini-hack/ui/components/button";
+import { cn } from "@gemini-hack/ui/lib/utils";
+import { ChevronsLeftRight, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { RenderView } from "../lib/taskManager";
+import { Dot, glass } from "./parts";
 import { fmtMs } from "./Timeline";
+
+const IMG = "pointer-events-none absolute inset-0 block size-full object-cover";
+const TAG =
+	"pointer-events-none absolute top-15 rounded-full bg-[#0a0b0e]/55 px-2.5 py-0.5 text-[11px] tracking-wide text-white backdrop-blur-sm transition-opacity";
 
 export function RenderOverlay({
 	view,
@@ -35,9 +43,13 @@ export function RenderOverlay({
 	};
 
 	return (
-		<div className="render-overlay" role="dialog" aria-label="Photoreal render">
+		<div
+			className="animate-in fade-in absolute inset-0 z-5 bg-[#0b0c0f] duration-300"
+			role="dialog"
+			aria-label="Photoreal render"
+		>
 			<div
-				className="render-box"
+				className="absolute inset-0 cursor-ew-resize touch-none overflow-hidden select-none"
 				ref={boxRef}
 				onPointerDown={(e) => {
 					dragging.current = true;
@@ -51,68 +63,66 @@ export function RenderOverlay({
 				onPointerCancel={() => (dragging.current = false)}
 			>
 				<img
-					className="render-img render-after"
+					className={IMG}
 					src={view.after}
 					alt="Photoreal render of the room"
 					draggable={false}
 				/>
 				<img
-					className="render-img render-before"
+					className={IMG}
 					src={view.before}
 					alt="3D view"
 					draggable={false}
 					style={{ clipPath: `inset(0 ${100 - split}% 0 0)` }}
 				/>
-				<div className="render-split" style={{ left: `${split}%` }}>
-					<span className="render-handle" aria-hidden>
-						<svg width="18" height="18" viewBox="0 0 18 18">
-							<path
-								d="M6.5 4.5 2 9l4.5 4.5M11.5 4.5 16 9l-4.5 4.5"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.6"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							/>
-						</svg>
+				<div
+					className="pointer-events-none absolute inset-y-0 -ml-px w-0.5 bg-white/85 shadow-[0_0_0_1px_rgb(0_0_0/0.25),0_0_14px_rgb(0_0_0/0.4)]"
+					style={{ left: `${split}%` }}
+				>
+					<span
+						className="absolute top-1/2 left-1/2 grid size-9 -translate-1/2 place-items-center rounded-full bg-white/90 text-[#15171c] shadow-lg"
+						aria-hidden
+					>
+						<ChevronsLeftRight className="size-4.5" />
 					</span>
 				</div>
 				<span
-					className="render-tag render-tag-left"
+					className={cn(TAG, "left-3.5")}
 					style={{ opacity: split > 12 ? 1 : 0 }}
 				>
 					3D scene
 				</span>
 				<span
-					className="render-tag render-tag-right"
+					className={cn(TAG, "right-3.5")}
 					style={{ opacity: split < 88 ? 1 : 0 }}
 				>
 					Photoreal
 				</span>
 			</div>
-			<div className="render-bar">
-				<span className="dot dot-render" />
-				<span className="render-title">Photoreal render</span>
-				<span className="render-meta">
+			<div
+				className={cn(
+					glass,
+					"absolute inset-x-3 top-3 flex h-9.5 items-center gap-2.5 rounded-xl pr-1 pl-3.5",
+				)}
+			>
+				<Dot agent="render" />
+				<span className="font-semibold">Photoreal render</span>
+				<span className="text-text-2 font-mono text-[11px]">
 					{view.model ? `${view.model} · ` : ""}
 					{fmtMs(view.ms)}
 				</span>
-				<span className="render-hint">drag to compare · Esc to close</span>
-				<button
-					className="btn render-close"
+				<span className="text-muted-foreground flex-1 truncate text-right text-[11px]">
+					drag to compare · Esc to close
+				</span>
+				<Button
+					variant="outline"
+					className="h-7.5 rounded-lg"
 					onClick={onClose}
 					title="Close (Esc)"
 				>
-					<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-						<path
-							d="M2 2l8 8M10 2 2 10"
-							stroke="currentColor"
-							strokeWidth="1.6"
-							strokeLinecap="round"
-						/>
-					</svg>
+					<X />
 					Close
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

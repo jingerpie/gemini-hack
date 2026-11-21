@@ -7,6 +7,7 @@ import {
 	type Task,
 	type TaskManager,
 } from "../lib/taskManager";
+import { Dot } from "./parts";
 
 export const HUES = {
 	patch: "#6f90bd",
@@ -331,8 +332,9 @@ export function Timeline({ manager }: { manager: TaskManager }) {
 	}, [manager]);
 
 	return (
+		// biome-ignore lint/a11y: canvas hover/click shortcut; every task is also listed (and focusable) in the sidebar
 		<div
-			className="timeline"
+			className="border-border relative h-22.5 overflow-hidden rounded-xl border bg-linear-to-b from-white/[0.018] to-transparent"
 			ref={wrapRef}
 			onMouseMove={(e) => {
 				const r = e.currentTarget.getBoundingClientRect();
@@ -346,7 +348,7 @@ export function Timeline({ manager }: { manager: TaskManager }) {
 			}}
 			style={{ cursor: tip ? "pointer" : "default" }}
 		>
-			<canvas ref={canvasRef} />
+			<canvas ref={canvasRef} className="absolute inset-0 block" />
 			{tip && <TimelineTip tip={tip} manager={manager} />}
 		</div>
 	);
@@ -377,14 +379,14 @@ function TimelineTip({
 		: { left: Math.max(8, tip.x - 10) };
 	return (
 		<div
-			className="timeline-tip"
+			className="border-input bg-popover/95 pointer-events-none absolute z-2 flex max-w-105 items-center gap-2 rounded-lg border px-2.5 py-1 text-[11.5px] whitespace-nowrap shadow-xl"
 			style={{ ...pos, top: Math.max(4, tip.y - 44) }}
 		>
-			<span
-				className={`dot dot-${live.kind === "patch" && live.designer ? "designer" : live.kind}`}
+			<Dot
+				agent={live.kind === "patch" && live.designer ? "designer" : live.kind}
 			/>
-			<span className="tip-label">{label}</span>
-			<span className="tip-ms">
+			<span className="text-foreground truncate">{label}</span>
+			<span className="text-muted-foreground font-mono text-[10.5px]">
 				{fmtMs(ms)}
 				{live.endAt == null ? "…" : ""}
 				{live.status !== "running" && live.status !== "done"

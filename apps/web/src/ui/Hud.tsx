@@ -1,4 +1,23 @@
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@gemini-hack/ui/components/alert-dialog";
+import { Badge } from "@gemini-hack/ui/components/badge";
+import { Button } from "@gemini-hack/ui/components/button";
+import { Label } from "@gemini-hack/ui/components/label";
+import { Spinner } from "@gemini-hack/ui/components/spinner";
+import { Switch } from "@gemini-hack/ui/components/switch";
+import { cn } from "@gemini-hack/ui/lib/utils";
+import { Camera, House, Undo2 } from "lucide-react";
 import type { ChipState } from "../App";
+import { glass, Hint } from "./parts";
 import { fmtMs } from "./Timeline";
 
 type Props = {
@@ -22,6 +41,14 @@ const CHIP_LABEL: Record<ChipState, string> = {
 	listening: "listening",
 	fallback: "fallback · type below",
 };
+const CHIP_DOT: Record<ChipState, string> = {
+	idle: "bg-faint",
+	connecting: "bg-warn animate-breathe",
+	listening: "bg-ok animate-pulse-dot text-ok",
+	fallback: "bg-bad",
+};
+
+const pill = cn(glass, "text-text-2 h-8 rounded-full px-2.5 text-xs");
 
 export function Hud({
 	chip,
@@ -39,152 +66,138 @@ export function Hud({
 }: Props) {
 	return (
 		<>
-			<div className="hud hud-left">
-				<div className="brand">
-					<span className="brand-mark" aria-hidden>
-						<svg width="16" height="16" viewBox="0 0 16 16">
-							<path
-								d="M2 13V5.5L8 2l6 3.5V13"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.4"
-								strokeLinejoin="round"
-							/>
-							<path
-								d="M5.5 13V8.5h5V13"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.4"
-								strokeLinejoin="round"
-							/>
-						</svg>
-					</span>
-					<span className="brand-name">Studio</span>
-					<span className="brand-sub">voice-driven interiors</span>
+			<div className="pointer-events-none absolute top-3 left-3 flex items-center gap-2 *:pointer-events-auto">
+				<div className={cn(pill, "flex items-center gap-2")}>
+					<House className="text-foreground size-4" aria-hidden />
+					<span className="text-foreground font-semibold">Studio</span>
+					<span className="text-muted-foreground">voice-driven interiors</span>
 				</div>
-				<span className={`chip chip-${chip}`} title={chipDetail || undefined}>
-					<i />
+				<Badge
+					variant="outline"
+					className={cn(pill, "max-w-80 gap-1.5")}
+					title={chipDetail || undefined}
+				>
+					<i className={cn("size-1.5 rounded-full", CHIP_DOT[chip])} />
 					{CHIP_LABEL[chip]}
 					{chipDetail && chip !== "idle" && (
-						<span className="chip-detail">{chipDetail}</span>
+						<span className="text-muted-foreground truncate">{chipDetail}</span>
 					)}
-				</span>
-				{mock && <span className="chip chip-mock">mock</span>}
+				</Badge>
+				{mock && (
+					<Badge variant="outline" className={cn(pill, "text-warn")}>
+						mock
+					</Badge>
+				)}
 			</div>
-			<div className="hud hud-right">
-				<div className="readout" title="orchestrator round-trip latency">
-					<div>
-						<span className="readout-k">last</span>
-						<span className="readout-v">
-							{stats.last == null ? "—" : fmtMs(stats.last)}
-						</span>
+
+			<div className="pointer-events-none absolute top-3 right-3 flex items-center gap-2 *:pointer-events-auto">
+				<Hint label="Orchestrator round-trip latency">
+					<div className={cn(glass, "flex h-8 items-stretch rounded-full")}>
+						<Readout label="last" value={stats.last} />
+						<Readout label="median" value={stats.median} />
+						<Readout label="jobs" value={stats.jobs} live={stats.jobs > 0} />
 					</div>
-					<div>
-						<span className="readout-k">median</span>
-						<span className="readout-v">
-							{stats.median == null ? "—" : fmtMs(stats.median)}
-						</span>
-					</div>
-					<div>
-						<span className="readout-k">jobs</span>
-						<span className={`readout-v ${stats.jobs ? "readout-live" : ""}`}>
-							{stats.jobs}
-						</span>
-					</div>
-				</div>
-				<button
-					className={`toggle ${verifyEnabled ? "on" : ""}`}
-					onClick={() => onVerify(!verifyEnabled)}
-					title="After each change, screenshot the room and check it against what you asked"
-				>
-					<span className="toggle-track">
-						<span className="toggle-thumb" />
-					</span>
-					Verify
-				</button>
-				<button
-					className={`toggle toggle-shop ${shopEnabled ? "on" : ""}`}
-					onClick={() => onShop(!shopEnabled)}
-					title="For each new custom object, a sourcing agent finds 3 real products you can buy"
-				>
-					<span className="toggle-track">
-						<span className="toggle-thumb" />
-					</span>
-					Shop the look
-				</button>
-				<button
-					className={`btn btn-render ${rendering ? "busy" : ""}`}
-					onClick={onRender}
-					title="Photoreal render of the current view (or say “render it”)"
-				>
-					{rendering ? (
-						<span className="spinner" />
-					) : (
-						<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-							<rect
-								x="1.5"
-								y="3.5"
-								width="11"
-								height="8"
-								rx="1.6"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.3"
-							/>
-							<circle
-								cx="7"
-								cy="7.5"
-								r="2.1"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.3"
-							/>
-							<path
-								d="M4.5 3.5 5.4 2h3.2l.9 1.5"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.3"
-								strokeLinejoin="round"
-							/>
-						</svg>
-					)}
-					Photoreal
-				</button>
-				<button className="btn" onClick={onUndo} title="Undo (Ctrl+Z)">
-					<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-						<path
-							d="M4.5 3 1.8 5.7l2.7 2.7"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.4"
-							strokeLinecap="round"
-							strokeLinejoin="round"
+				</Hint>
+				<Hint label="After each change, screenshot the room and check it against what you asked">
+					<Label
+						htmlFor="verify-switch"
+						className={cn(pill, "cursor-pointer gap-2 text-xs")}
+					>
+						<Switch
+							id="verify-switch"
+							checked={verifyEnabled}
+							onCheckedChange={(on) => onVerify(on)}
+							className="data-checked:bg-ok"
 						/>
-						<path
-							d="M2 5.7h6.2a3.6 3.6 0 0 1 0 7.2H5.5"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="1.4"
-							strokeLinecap="round"
+						Verify
+					</Label>
+				</Hint>
+				<Hint label="For each new custom object, a sourcing agent finds 3 real products you can buy">
+					<Label
+						htmlFor="shop-switch"
+						className={cn(pill, "cursor-pointer gap-2 text-xs")}
+					>
+						<Switch
+							id="shop-switch"
+							checked={shopEnabled}
+							onCheckedChange={(on) => onShop(on)}
+							className="data-checked:bg-source"
 						/>
-					</svg>
-					Undo
-				</button>
-				<button
-					className="btn"
-					onClick={() => {
-						if (
-							window.confirm(
-								"Start a new room? This clears the scene, tasks and transcript.",
-							)
-						)
-							onNewRoom();
-					}}
-					title="Clear the room and start over"
-				>
-					New room
-				</button>
+						Shop the look
+					</Label>
+				</Hint>
+				<Hint label="Photoreal render of the current view (or say “render it”)">
+					<Button
+						variant="outline"
+						className={cn(pill, "border-decal/40 text-foreground")}
+						onClick={onRender}
+					>
+						{rendering ? <Spinner /> : <Camera />}
+						Photoreal
+					</Button>
+				</Hint>
+				<Hint label="Undo (Ctrl+Z)">
+					<Button variant="outline" className={pill} onClick={onUndo}>
+						<Undo2 />
+						Undo
+					</Button>
+				</Hint>
+				<NewRoom onConfirm={onNewRoom} />
 			</div>
 		</>
+	);
+}
+
+function Readout({
+	label,
+	value,
+	live,
+}: {
+	label: string;
+	value: number | null;
+	live?: boolean;
+}) {
+	const text =
+		value == null ? "—" : label === "jobs" ? String(value) : fmtMs(value);
+	return (
+		<div className="not-first:border-border flex min-w-11 flex-col justify-center px-2.5 leading-none not-first:border-l">
+			<span className="text-muted-foreground text-[9px] tracking-wider uppercase">
+				{label}
+			</span>
+			<span
+				className={cn(
+					"text-foreground mt-0.5 font-mono text-[11px]",
+					live && "text-cursor",
+				)}
+			>
+				{text}
+			</span>
+		</div>
+	);
+}
+
+function NewRoom({ onConfirm }: { onConfirm(): void }) {
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger
+				render={
+					<Button variant="outline" className={pill}>
+						New room
+					</Button>
+				}
+			/>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Start a new room?</AlertDialogTitle>
+					<AlertDialogDescription>
+						This clears the scene, tasks and transcript.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel>Cancel</AlertDialogCancel>
+					<AlertDialogAction onClick={onConfirm}>New room</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
 	);
 }

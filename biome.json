@@ -74,7 +74,7 @@
 				"noAssignInExpressions": "warn",
 				"useIterableCallbackReturn": "warn"
 			},
-			"a11y": "warn"
+			"a11y": "error"
 		}
 	},
 	"javascript": {

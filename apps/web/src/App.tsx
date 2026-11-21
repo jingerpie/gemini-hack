@@ -10,10 +10,10 @@ import { TaskManager } from "./lib/taskManager";
 import type { Engine, Voice, VoiceHandlers, VoiceState } from "./types";
 import { Dock } from "./ui/Dock";
 import { Hud } from "./ui/Hud";
+import { glass } from "./ui/parts";
 import { RenderOverlay } from "./ui/RenderOverlay";
 import { Sidebar } from "./ui/Sidebar";
 import { Timeline } from "./ui/Timeline";
-import "./styles.css";
 
 // ?mock=1 → mock engine + api + voice.  ?mock=api → real 3D engine, mock api + voice.  (none) → all real.
 const MOCK_MODE = new URLSearchParams(location.search).get("mock");
@@ -220,19 +220,21 @@ export default function App() {
 	}, [state.patchMs, state.tasks]);
 
 	return (
-		<div className="app">
-			<main className="stage">
-				<div className="viewport-frame">
-					<div className="viewport" ref={viewportRef} />
+		<div className="grid h-screen w-screen grid-cols-[minmax(0,72fr)_minmax(330px,28fr)] overflow-hidden">
+			<main className="flex min-h-0 min-w-0 flex-col gap-2 py-3 pl-3">
+				<div className="border-border relative min-h-0 flex-1 overflow-hidden rounded-2xl border bg-[radial-gradient(120%_90%_at_50%_40%,#1a1c21_0%,#0f1013_70%)] shadow-[inset_0_30px_60px_-30px_rgb(0_0_0/0.6)]">
+					<div className="absolute inset-0" ref={viewportRef} />
 					{!engineReady && (
-						<div className="viewport-empty">
+						<div className="text-muted-foreground pointer-events-none absolute inset-0 grid place-content-center gap-1.5 text-center">
 							{engineError ? (
 								<>
-									<b>3D engine failed to load</b>
+									<b className="text-bad font-medium">
+										3D engine failed to load
+									</b>
 									<span>{engineError}</span>
 								</>
 							) : (
-								<span className="loading">Loading room…</span>
+								<span className="animate-breathe">Loading room…</span>
 							)}
 						</div>
 					)}
@@ -253,16 +255,23 @@ export default function App() {
 						stats={stats}
 					/>
 					{hover && engineReady && !state.render && (
-						<div className={`pointing pointing-${hover.kind}`} aria-live="off">
-							<span className="pointing-k">pointing at</span>
-							<span className="pointing-v">{hover.name}</span>
+						<div
+							className={`${glass} animate-in fade-in pointer-events-none absolute bottom-3 left-3 inline-flex h-6.5 items-center gap-2 rounded-full px-3 text-xs duration-150`}
+							aria-live="off"
+						>
+							<span className="text-muted-foreground text-[10px] tracking-[0.08em] uppercase">
+								pointing at
+							</span>
+							<span className="text-foreground max-w-65 truncate font-medium">
+								{hover.name}
+							</span>
 						</div>
 					)}
 					{state.render && (
 						<RenderOverlay view={state.render} onClose={closeRender} />
 					)}
 				</div>
-				<section className="dock">
+				<section className="flex flex-none flex-col gap-1">
 					<Timeline manager={manager} />
 					<Dock
 						chip={chip}

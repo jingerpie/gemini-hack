@@ -1,0 +1,91 @@
+/* App stylesheet: Tailwind + the shared shadcn theme, with the studio's dark palette on top. */
+@import "@gemini-hack/ui/globals.css";
+@import "@fontsource-variable/inter";
+
+/* Studio palette mapped onto the shadcn tokens (the app always runs in .dark, set on <html>). */
+.dark {
+	--background: #0c0d10;
+	--foreground: #e7e9ee;
+	--card: #131418;
+	--card-foreground: #e7e9ee;
+	--popover: #17191e;
+	--popover-foreground: #e7e9ee;
+	--primary: #e7e9ee;
+	--primary-foreground: #0c0d10;
+	--secondary: #17191e;
+	--secondary-foreground: #e7e9ee;
+	--muted: #17191e;
+	--muted-foreground: #7d838f;
+	--accent: #1d1f25;
+	--accent-foreground: #e7e9ee;
+	--destructive: #d0605a;
+	--border: rgb(255 255 255 / 0.08);
+	--input: rgb(255 255 255 / 0.12);
+	--ring: #7aa2e8;
+	color-scheme: dark;
+}
+
+@theme {
+	--font-sans:
+		"Inter Variable", "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui,
+		sans-serif;
+	--font-mono:
+		"JetBrains Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+	/* one hue per agent; the timeline canvas uses the same values (ui/Timeline.tsx HUES) */
+	--color-patch: #6f90bd;
+	--color-asset: #8270c0;
+	--color-decal: #4fa39a;
+	--color-source: #c9934a;
+	--color-designer: #c77fb4;
+	--color-ok: #5fb38a;
+	--color-warn: #d2a04f;
+	--color-bad: #d0605a;
+	--color-faint: #545a65;
+	--color-cursor: #7aa2e8;
+	--color-text-2: #b9bec8;
+
+	--animate-breathe: breathe 1.6s ease-in-out infinite;
+	--animate-blink: blink 1s steps(1) infinite;
+	--animate-sweep: sweep 1.4s ease-in-out infinite;
+	--animate-pulse-dot: pulse-dot 1.4s ease-in-out infinite;
+
+	@keyframes breathe {
+		50% {
+			opacity: 0.45;
+		}
+	}
+	@keyframes blink {
+		50% {
+			opacity: 0;
+		}
+	}
+	@keyframes sweep {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(250%);
+		}
+	}
+	@keyframes pulse-dot {
+		0%,
+		100% {
+			box-shadow: 0 0 0 0 currentColor;
+		}
+		50% {
+			box-shadow: 0 0 0 4px transparent;
+		}
+	}
+}
+
+@layer base {
+	html,
+	body,
+	#root {
+		height: 100%;
+	}
+	body {
+		@apply text-[13px] leading-[1.45] antialiased;
+	}
+}

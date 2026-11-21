@@ -1,4 +1,26 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Badge } from "@gemini-hack/ui/components/badge";
+import { Button } from "@gemini-hack/ui/components/button";
+import {
+	Card,
+	CardAction,
+	CardHeader,
+	CardTitle,
+} from "@gemini-hack/ui/components/card";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@gemini-hack/ui/components/collapsible";
+import { Spinner } from "@gemini-hack/ui/components/spinner";
+import { cn } from "@gemini-hack/ui/lib/utils";
+import { ChevronRight, House } from "lucide-react";
+import {
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	DESIGNER_HINT_MS,
 	type ShopGroup,
@@ -7,7 +29,41 @@ import {
 	type TaskManager,
 } from "../lib/taskManager";
 import type { Product } from "../types";
+import { Dot } from "./parts";
 import { fmtMs } from "./Timeline";
+
+const panel = "min-h-0 gap-0 rounded-xl py-0 ring-border";
+const scroller =
+	"min-h-0 flex-1 overflow-y-auto [scrollbar-color:rgb(255_255_255/0.08)_transparent] [scrollbar-width:thin]";
+const empty = "text-[12.5px] text-faint";
+
+function PanelHead({
+	title,
+	meta,
+	className,
+}: {
+	title: ReactNode;
+	meta?: ReactNode;
+	className?: string;
+}) {
+	return (
+		<CardHeader
+			className={cn(
+				"border-border flex h-9 flex-none items-center justify-between border-b px-3.5 py-0 [.border-b]:pb-0",
+				className,
+			)}
+		>
+			<CardTitle className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium tracking-[0.09em] uppercase">
+				{title}
+			</CardTitle>
+			{meta ? (
+				<CardAction className="text-faint flex items-center gap-1.5 self-center font-mono text-[10.5px]">
+					{meta}
+				</CardAction>
+			) : null}
+		</CardHeader>
+	);
+}
 
 export function Sidebar({
 	state,
@@ -20,46 +76,56 @@ export function Sidebar({
 	const [opsOpen, setOpsOpen] = useState(
 		() => typeof window === "undefined" || window.innerHeight >= 860,
 	);
+	const productCount = state.shop.reduce((n, g) => n + g.products.length, 0);
 	return (
-		<aside className="sidebar">
-			<section className="panel transcript-panel">
-				<header className="panel-head">
-					<h2>Transcript</h2>
-					<span className="panel-meta">
-						{state.transcript.filter((l) => l.kind === "user").length || ""}
-					</span>
-				</header>
+		<aside className="flex min-h-0 flex-col gap-2.5 p-3">
+			<Card className={cn(panel, "min-h-24 flex-[0.9_1_0]")}>
+				<PanelHead
+					title="Transcript"
+					meta={state.transcript.filter((l) => l.kind === "user").length || ""}
+				/>
 				<Transcript state={state} />
-			</section>
+			</Card>
 
-			<section className="panel tasks-panel">
-				<header className="panel-head">
-					<h2>Tasks</h2>
-					<span className="panel-meta">
-						{state.counters.running ? <span className="live-dot" /> : null}
-						{state.counters.running
-							? `${state.counters.running} running`
-							: state.tasks.length
-								? `${state.tasks.length}`
-								: ""}
-					</span>
-				</header>
+			<Card className={cn(panel, "min-h-42 flex-[1.5_1_0]")}>
+				<PanelHead
+					title="Tasks"
+					meta={
+						state.counters.running ? (
+							<>
+								<Dot agent="asset" pulse />
+								{state.counters.running} running
+							</>
+						) : (
+							state.tasks.length || ""
+						)
+					}
+				/>
 				<TaskList tasks={state.tasks} manager={manager} />
-			</section>
+			</Card>
 
 			{state.shop.length > 0 && (
-				<section
-					className={`panel shop-panel ${state.shop.some((g) => g.products.length) ? "has-products" : ""}`}
+				<Card
+					className={cn(
+						panel,
+						productCount ? "min-h-37 flex-[1_1_0]" : "flex-none",
+					)}
 				>
-					<header className="panel-head">
-						<h2>
-							<i className="dot dot-source" /> Shop the look
-						</h2>
-						<span className="panel-meta">
-							{state.shop.reduce((n, g) => n + g.products.length, 0) || ""}
-						</span>
-					</header>
-					<div className="shop">
+					<PanelHead
+						title={
+							<>
+								<Dot agent="source" className="size-[7px]" /> Shop the look
+							</>
+						}
+						meta={productCount || ""}
+					/>
+					<div
+						className={cn(
+							scroller,
+							"flex flex-col gap-3 px-2.5 pt-2 pb-2.5",
+							!productCount && "max-h-30",
+						)}
+					>
 						{state.shop
 							.slice()
 							.reverse()
@@ -67,43 +133,80 @@ export function Sidebar({
 								<ShopGroupView key={g.objectId} g={g} manager={manager} />
 							))}
 					</div>
-				</section>
+				</Card>
 			)}
 
-			<section className={`panel ops-panel ${opsOpen ? "open" : ""}`}>
-				<header
-					className="panel-head clickable"
-					onClick={() => setOpsOpen((o) => !o)}
-				>
-					<h2>
-						<span className={`caret ${opsOpen ? "open" : ""}`}>›</span> Scene
-						ops
-					</h2>
-					<span className="panel-meta">{state.opsLog.length || ""}</span>
-				</header>
-				{opsOpen && <OpsLog state={state} />}
-				<div className="counters">
-					<span>
-						<b>{state.counters.objects}</b> objects
-					</span>
-					<span>
-						<b>{state.counters.decals}</b> decals
-					</span>
-					<span>
-						<b>{state.counters.done}</b> done
-					</span>
-					<span className={state.counters.failed ? "bad" : ""}>
-						<b>{state.counters.failed}</b> failed
-					</span>
+			<Collapsible
+				open={opsOpen}
+				onOpenChange={setOpsOpen}
+				render={
+					<Card
+						className={cn(
+							panel,
+							"min-h-18",
+							opsOpen
+								? "flex-[0.8_1_0] [@media(max-height:860px)]:flex-[0.5_1_0]"
+								: "flex-none",
+						)}
+					/>
+				}
+			>
+				<PanelHead
+					title={
+						<CollapsibleTrigger className="hover:text-text-2 flex cursor-pointer items-center gap-1.5 uppercase select-none">
+							<ChevronRight
+								className={cn(
+									"size-3.5 transition-transform",
+									opsOpen && "rotate-90",
+								)}
+							/>
+							Scene ops
+						</CollapsibleTrigger>
+					}
+					meta={state.opsLog.length || ""}
+				/>
+				<CollapsibleContent className="flex min-h-0 flex-1 flex-col">
+					<OpsLog state={state} />
+				</CollapsibleContent>
+				<div className="border-border text-muted-foreground flex flex-none gap-3.5 border-t px-3.5 py-2 text-[11px]">
+					<Counter n={state.counters.objects} label="objects" />
+					<Counter n={state.counters.decals} label="decals" />
+					<Counter n={state.counters.done} label="done" />
+					<Counter n={state.counters.failed} label="failed" bad />
 				</div>
-			</section>
+			</Collapsible>
 		</aside>
+	);
+}
+
+function Counter({
+	n,
+	label,
+	bad,
+}: {
+	n: number;
+	label: string;
+	bad?: boolean;
+}) {
+	return (
+		<span>
+			<b
+				className={cn(
+					"text-text-2 mr-1 font-mono font-medium",
+					bad && n > 0 && "text-bad",
+				)}
+			>
+				{n}
+			</b>
+			{label}
+		</span>
 	);
 }
 
 function useStickToBottom(dep: unknown) {
 	const ref = useRef<HTMLDivElement>(null);
 	const stick = useRef(true);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: dep is the trigger, not read inside
 	useLayoutEffect(() => {
 		const el = ref.current;
 		if (el && stick.current) el.scrollTop = el.scrollHeight;
@@ -116,44 +219,61 @@ function useStickToBottom(dep: unknown) {
 	return { ref, onScroll };
 }
 
+const rise = "animate-in fade-in slide-in-from-bottom-1 duration-200";
+
 function Transcript({ state }: { state: StudioState }) {
 	const { ref, onScroll } = useStickToBottom(
 		`${state.transcript.length}|${state.interim}`,
 	);
 	const statusOf = (taskId?: string) =>
 		state.tasks.find((t) => t.id === taskId);
-	const empty = state.transcript.length === 0 && !state.interim;
+	const isEmpty = state.transcript.length === 0 && !state.interim;
 	return (
-		<div className="transcript" ref={ref} onScroll={onScroll}>
-			{empty && <p className="empty">No speech yet.</p>}
+		<div
+			className={cn(scroller, "flex flex-col gap-0.5 px-3.5 pt-3 pb-4")}
+			ref={ref}
+			onScroll={onScroll}
+		>
+			{isEmpty && <p className={empty}>No speech yet.</p>}
 			{state.transcript.map((l) =>
 				l.kind === "user" ? (
 					<p
 						key={l.id}
-						className={`line line-user ${lineState(statusOf(l.taskId))}`}
+						className={cn(
+							rise,
+							"text-foreground pt-1.5 text-[14.5px] leading-normal transition-colors",
+							lineClass(statusOf(l.taskId)),
+						)}
 					>
 						{l.text}
 					</p>
 				) : (
-					<p key={l.id} className="line line-say">
+					<p
+						key={l.id}
+						className={cn(
+							rise,
+							"border-patch/35 text-muted-foreground my-0.5 ml-px border-l-2 pl-3 text-[12.5px]",
+						)}
+					>
 						{l.text}
 					</p>
 				),
 			)}
 			{state.interim && (
-				<p className="line line-interim">
+				<p className="pt-1.5 text-[14.5px] text-[#9aa6ba]">
 					{state.interim}
-					<span className="cursor" />
+					<span className="animate-blink bg-cursor ml-0.5 inline-block h-[1.05em] w-[7px] rounded-[1px] align-[-0.15em]" />
 				</p>
 			)}
 		</div>
 	);
 }
 
-function lineState(t?: Task) {
+function lineClass(t?: Task) {
 	if (!t) return "";
-	if (t.status === "running" || t.status === "held") return "pending";
-	if (t.status === "failed") return "failed";
+	if (t.status === "running" || t.status === "held") return "text-[#cfd6e4]";
+	if (t.status === "failed")
+		return "text-muted-foreground line-through decoration-bad/60";
 	return "";
 }
 
@@ -182,14 +302,13 @@ function TaskList({ tasks, manager }: { tasks: Task[]; manager: TaskManager }) {
 		.filter((t) => !isLive(t))
 		.sort((a, b) => b.startAt - a.startAt)
 		.slice(0, 60);
-	if (!tasks.length)
-		return (
-			<div className="tasks">
-				<p className="empty">Tasks you trigger show up here.</p>
-			</div>
-		);
 	return (
-		<div className="tasks">
+		<div className={cn(scroller, "flex flex-col gap-1.5 p-2")}>
+			{!tasks.length && (
+				<p className={cn(empty, "px-1.5 py-1")}>
+					Tasks you trigger show up here.
+				</p>
+			)}
 			{[...running, ...rest].map((t) => (
 				<TaskCard key={t.id} task={t} manager={manager} />
 			))}
@@ -208,6 +327,29 @@ const STATUS_WORD: Record<Task["status"], string> = {
 	superseded: "superseded",
 };
 
+const EDGE: Record<string, string> = {
+	patch: "shadow-[inset_2px_0_0_var(--color-patch)]",
+	designer: "shadow-[inset_2px_0_0_var(--color-designer)]",
+	asset: "shadow-[inset_2px_0_0_var(--color-asset)]",
+	decal: "shadow-[inset_2px_0_0_var(--color-decal)]",
+	render: "shadow-[inset_2px_0_0_var(--color-decal)]",
+	source: "shadow-[inset_2px_0_0_var(--color-source)]",
+	failed: "shadow-[inset_2px_0_0_var(--color-bad)]",
+};
+const SWEEP: Record<string, string> = {
+	patch: "via-white/35",
+	asset: "via-asset",
+	decal: "via-decal",
+	render: "via-decal",
+	source: "via-source",
+	designer: "via-designer",
+};
+const TAG: Partial<Record<Task["status"], string>> = {
+	failed: "bg-bad/15 text-[#e89590]",
+	held: "bg-patch/15 text-[#a8c0e2]",
+	queued: "bg-white/5 text-muted-foreground",
+};
+
 function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 	const live = t.status === "running" || t.status === "held";
 	const elapsed = (t.endAt ?? performance.now()) - t.startAt;
@@ -222,9 +364,31 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 	const focusable =
 		!!t.targetId || (t.kind === "render" && t.status === "done");
 	const statusLine = planning ? "designer is planning the room…" : t.statusLine;
+	const hue = designer ? "designer" : t.kind;
+	const edge = designer
+		? EDGE.designer
+		: t.status === "failed"
+			? EDGE.failed
+			: live
+				? EDGE[t.kind]
+				: "";
 	return (
+		// biome-ignore lint/a11y: mouse shortcut to focus the object; the same focus is reachable from the timeline and by voice
 		<div
-			className={`card card-${t.kind} st-${t.status} ${designer ? "card-designer" : ""} ${planning ? "planning" : ""} ${focusable ? "focusable" : ""}`}
+			className={cn(
+				rise,
+				"border-border bg-muted relative flex-none overflow-hidden rounded-[10px] border py-2 pr-2.5 pl-3 transition-[border-color,opacity]",
+				edge,
+				live && "border-white/10",
+				designer && "from-designer/7 bg-linear-to-b to-transparent",
+				planning && "border-designer/45",
+				(t.status === "nochange" ||
+					t.status === "cancelled" ||
+					t.status === "superseded") &&
+					"opacity-60",
+				t.status === "queued" && "border-dashed opacity-70",
+				focusable && "hover:border-input cursor-pointer hover:bg-[#1a1c22]",
+			)}
 			onClick={() => manager.focus(t.id)}
 			title={
 				t.kind === "render"
@@ -236,12 +400,17 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 						: undefined
 			}
 		>
-			<div className="card-top">
+			<div className="flex items-center gap-2">
+				<Dot agent={hue} pulse={t.status === "running"} />
+				<span className="text-foreground min-w-0 flex-1 truncate text-[12.5px]">
+					{title}
+				</span>
 				<span
-					className={`dot dot-${designer ? "designer" : t.kind} ${t.status === "running" ? "pulse" : ""}`}
-				/>
-				<span className="card-title">{title}</span>
-				<span className="card-time">
+					className={cn(
+						"text-muted-foreground font-mono text-[10.5px] tabular-nums",
+						t.status === "running" && "text-text-2",
+					)}
+				>
 					{t.status === "running"
 						? fmtMs(performance.now() - t.startAt)
 						: t.status === "queued"
@@ -252,59 +421,98 @@ function TaskCard({ task: t, manager }: { task: Task; manager: TaskManager }) {
 				</span>
 			</div>
 			{t.kind === "patch" && t.designer && t.model && (
-				<div className="card-designer-label">designer · {t.model}</div>
-			)}
-			{t.kind === "patch" && t.designer && (t.brief || t.say) && (
-				<div className="card-brief">
-					{t.brief && (
-						<p className="brief" title={t.brief}>
-							<b>brief</b> {t.brief}
-						</p>
-					)}
-					{t.say && <p className="say">{t.say}</p>}
+				<div className="mt-0.5 ml-3.5 font-mono text-[10px] tracking-wide text-[#dcaed0]">
+					designer · {t.model}
 				</div>
 			)}
-			<div className="card-bottom">
+			{t.kind === "patch" && t.designer && (t.brief || t.say) && (
+				<div className="mt-1 ml-3.5 flex flex-col gap-0.5 text-[11.5px] leading-snug">
+					{t.brief && (
+						<p className="text-text-2 line-clamp-3" title={t.brief}>
+							<b className="mr-1 text-[9.5px] font-medium tracking-[0.07em] text-[#dcaed0] uppercase">
+								brief
+							</b>
+							{t.brief}
+						</p>
+					)}
+					{t.say && (
+						<p className="text-muted-foreground line-clamp-2 italic">{t.say}</p>
+					)}
+				</div>
+			)}
+			<div className="mt-1 flex min-h-5 items-center gap-2 pl-3.5">
 				<span
-					className={`card-status ${t.status === "failed" ? "bad" : ""}`}
+					className={cn(
+						"text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 truncate text-[11.5px]",
+						t.status === "failed" && "text-[#e08c86]",
+						planning && "text-[#e2b4d6]",
+					)}
 					title={statusLine}
 				>
 					{STATUS_WORD[t.status] && (
-						<em className={`tag tag-${t.status}`}>{STATUS_WORD[t.status]}</em>
+						<Badge
+							className={cn(
+								"h-4 rounded px-1.5 text-[9.5px] tracking-[0.07em] uppercase",
+								TAG[t.status] ?? "text-text-2 bg-white/6",
+							)}
+						>
+							{STATUS_WORD[t.status]}
+						</Badge>
 					)}
 					{(t.status === "running" && t.kind !== "patch") || planning ? (
-						<span className="spinner" />
+						<Spinner className="text-text-2 size-3" />
 					) : null}
-					{statusLine}
+					<span className="truncate">{statusLine}</span>
 				</span>
-				<span className="card-actions">
+				<span className="flex flex-none items-center gap-1.5">
 					{t.verify && <VerifyBadge v={t.verify} />}
 					{cancellable && (
-						<button
-							className="btn-mini"
+						<Button
+							variant="outline"
+							size="xs"
+							className="text-muted-foreground hover:text-foreground h-5 rounded-md bg-transparent text-[11px]"
 							onClick={(e) => {
 								e.stopPropagation();
 								manager.cancel(t.id);
 							}}
 						>
 							Cancel
-						</button>
+						</Button>
 					)}
 				</span>
 			</div>
-			{live && t.kind !== "patch" && <div className="card-progress" />}
+			{((live && t.kind !== "patch") || planning) && (
+				<div className="absolute inset-x-0 bottom-0 h-px overflow-hidden">
+					<div
+						className={cn(
+							"animate-sweep h-full w-2/5 bg-linear-to-r from-transparent to-transparent",
+							SWEEP[hue],
+						)}
+					/>
+				</div>
+			)}
 		</div>
 	);
 }
 
 function VerifyBadge({ v }: { v: NonNullable<Task["verify"]> }) {
+	const cls = "h-4 rounded-[5px] px-1.5 font-mono text-[10px]";
 	if (v.state === "pending")
-		return <span className="badge badge-pending">verifying…</span>;
+		return (
+			<Badge
+				className={cn(cls, "animate-breathe text-muted-foreground bg-white/5")}
+			>
+				verifying…
+			</Badge>
+		);
 	if (v.state === "error")
 		return (
-			<span className="badge badge-error" title="verify call failed">
+			<Badge
+				className={cn(cls, "text-faint bg-white/4")}
+				title="verify call failed"
+			>
 				verify n/a
-			</span>
+			</Badge>
 		);
 	const word =
 		v.state === "ok"
@@ -312,28 +520,61 @@ function VerifyBadge({ v }: { v: NonNullable<Task["verify"]> }) {
 			: v.state === "unsure"
 				? "unsure"
 				: "mismatch";
+	const tone =
+		v.state === "ok"
+			? "bg-ok/13 text-[#7fd1a6]"
+			: v.state === "unsure"
+				? "bg-warn/13 text-[#e2b468]"
+				: "bg-bad/14 text-[#ec8d86]";
 	return (
-		<span
-			className={`badge badge-${v.state}`}
+		<Badge
+			className={cn(cls, tone)}
 			title="screenshot checked against the request"
 		>
 			{word} {v.score.toFixed(2)}
-		</span>
+		</Badge>
 	);
 }
+
+const OP_TONE: Record<string, string> = {
+	patch: "text-[#b5c7e2]",
+	asset: "text-[#bdb2e6]",
+	decal: "text-[#9fd2ca]",
+	render: "text-[#9fd2ca]",
+	source: "text-[#e2c597]",
+	undo: "text-warn",
+};
 
 function OpsLog({ state }: { state: StudioState }) {
 	const { ref, onScroll } = useStickToBottom(state.opsLog.length);
 	return (
-		<div className="opslog" ref={ref} onScroll={onScroll}>
+		<div
+			className={cn(
+				scroller,
+				"px-3 py-2 font-mono text-[10.5px] leading-[1.75]",
+			)}
+			ref={ref}
+			onScroll={onScroll}
+		>
 			{state.opsLog.length === 0 && (
-				<p className="empty mono">no ops applied yet</p>
+				<p className="text-faint font-mono text-[11px]">no ops applied yet</p>
 			)}
 			{state.opsLog.map((o) => (
-				<div key={o.id} className={`op op-${o.kind}`}>
-					<span className="op-time">{clock(o.at)}</span>
-					<span className="op-text">{o.text}</span>
-					{o.ms != null && <span className="op-ms">{fmtMs(o.ms)}</span>}
+				<div key={o.id} className="flex gap-2 whitespace-nowrap">
+					<span className="text-faint flex-none">{clock(o.at)}</span>
+					<span
+						className={cn(
+							"text-text-2 min-w-0 flex-1 truncate",
+							OP_TONE[o.kind],
+						)}
+					>
+						{o.text}
+					</span>
+					{o.ms != null && (
+						<span className="text-muted-foreground flex-none">
+							{fmtMs(o.ms)}
+						</span>
+					)}
 				</div>
 			))}
 		</div>
@@ -360,34 +601,43 @@ function safeHttp(u: unknown): string | null {
 }
 
 function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
+	const status = "min-w-0 flex-auto truncate text-[11px] text-muted-foreground";
 	return (
-		<div className={`shop-group shop-${g.status}`}>
-			<div className="shop-group-head">
-				<span className="shop-name">{g.name}</span>
+		<div>
+			<div className="mb-1.5 flex min-w-0 items-center gap-2">
+				<span className="text-foreground max-w-[55%] flex-none truncate text-[12.5px] font-semibold">
+					{g.name}
+				</span>
 				{g.status === "running" && (
-					<span className="shop-status">
-						<span className="spinner" />
+					<span className={cn(status, "flex items-center gap-1.5")}>
+						<Spinner className="size-3" />
 						{g.statusLine}
 					</span>
 				)}
 				{g.status === "failed" && (
-					<span className="shop-status bad">no products · {g.statusLine}</span>
+					<span className={cn(status, "text-bad")}>
+						no products · {g.statusLine}
+					</span>
 				)}
-				{g.status === "cancelled" && (
-					<span className="shop-status">cancelled</span>
-				)}
+				{g.status === "cancelled" && <span className={status}>cancelled</span>}
 				{g.status === "done" && g.model && (
-					<span className="shop-status">{g.model}</span>
+					<span className={status}>{g.model}</span>
 				)}
 				{g.status === "running" && (
-					<button className="btn-mini" onClick={() => manager.cancel(g.taskId)}>
+					<Button
+						variant="outline"
+						size="xs"
+						className="text-muted-foreground hover:text-foreground h-5 rounded-md bg-transparent text-[11px]"
+						onClick={() => manager.cancel(g.taskId)}
+					>
 						Cancel
-					</button>
+					</Button>
 				)}
 			</div>
 			{g.products.length > 0 && (
-				<div className="shop-items">
+				<div className="grid grid-cols-1 gap-1.5">
 					{g.products.map((p, i) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: products have no id and the list never reorders
 						<ProductCard key={i} p={p} />
 					))}
 				</div>
@@ -408,43 +658,49 @@ function ProductCard({ p }: { p: Product }) {
 				: null
 		: null;
 	const title = String(p.title ?? "").slice(0, 200);
+	const cls =
+		"grid grid-cols-[52px_minmax(0,1fr)] grid-rows-[auto_auto] items-center gap-x-2.5 gap-y-0.5 rounded-[9px] border border-border bg-muted py-1.5 pr-2 pl-1.5 [@media(max-height:860px)]:grid-cols-[44px_minmax(0,1fr)]";
 	const body = (
 		<>
-			<span className="product-img">
+			<span className="row-span-2 block size-13 overflow-hidden rounded-md bg-[#f2f1ee] [@media(max-height:860px)]:size-11">
 				{src ? (
+					// biome-ignore lint/a11y/noNoninteractiveElementInteractions: onError is the image fallback chain, not an interaction
 					<img
 						src={src}
 						alt=""
 						loading="lazy"
 						referrerPolicy="no-referrer"
+						className="block size-full object-contain"
 						onError={() => setStage((s) => (s === 0 ? 1 : 2))}
 					/>
 				) : (
-					<span className="product-ph" aria-hidden>
-						<svg width="22" height="22" viewBox="0 0 24 24">
-							<path
-								d="M4 19V9l8-5 8 5v10H4Z"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.4"
-								strokeLinejoin="round"
-							/>
-						</svg>
+					<span
+						className="text-faint grid size-full place-items-center bg-[#22252c]"
+						aria-hidden
+					>
+						<House className="size-5" />
 					</span>
 				)}
 			</span>
-			<span className="product-title" title={title}>
+			<span
+				className="text-foreground line-clamp-2 self-end text-[11px] leading-tight"
+				title={title}
+			>
 				{title || "Product"}
 			</span>
-			<span className="product-meta">
-				<b>{String(p.price ?? "").slice(0, 40)}</b>
-				<span>{String(p.store ?? "").slice(0, 60)}</span>
+			<span className="flex min-w-0 items-baseline gap-2 self-start text-[10.5px]">
+				<b className="max-w-1/2 flex-none truncate font-semibold text-[#e2c597]">
+					{String(p.price ?? "").slice(0, 40)}
+				</b>
+				<span className="text-muted-foreground truncate">
+					{String(p.store ?? "").slice(0, 60)}
+				</span>
 			</span>
 		</>
 	);
 	return href ? (
 		<a
-			className="product"
+			className={cn(cls, "hover:border-source/60 hover:bg-[#1c1e24]")}
 			href={href}
 			target="_blank"
 			rel="noopener noreferrer"
@@ -452,6 +708,6 @@ function ProductCard({ p }: { p: Product }) {
 			{body}
 		</a>
 	) : (
-		<div className="product product-nolink">{body}</div>
+		<div className={cls}>{body}</div>
 	);
 }

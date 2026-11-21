@@ -1,5 +1,15 @@
+import { Button } from "@gemini-hack/ui/components/button";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupInput,
+} from "@gemini-hack/ui/components/input-group";
+import { Kbd } from "@gemini-hack/ui/components/kbd";
+import { cn } from "@gemini-hack/ui/lib/utils";
+import { CornerDownLeft, Mic } from "lucide-react";
 import { type MutableRefObject, useEffect, useRef, useState } from "react";
 import type { ChipState } from "../App";
+import { type Agent, Dot } from "./parts";
 
 type Props = {
 	chip: ChipState;
@@ -9,12 +19,39 @@ type Props = {
 	onSend(text: string): void;
 };
 
+const LEGEND: { agent: Agent; label: string; title: string }[] = [
+	{
+		agent: "patch",
+		label: "orchestrator · hydrogen",
+		title: "orchestrator · gemini-4-hydrogen",
+	},
+	{
+		agent: "designer",
+		label: "designer · argon",
+		title: "designer · gemini-4-argon (whole-room requests)",
+	},
+	{
+		agent: "asset",
+		label: "3D agent",
+		title: "3D models · managed agent (antigravity)",
+	},
+	{
+		agent: "decal",
+		label: "image · nano-banana",
+		title: "images and photoreal renders · nano-banana",
+	},
+	{
+		agent: "source",
+		label: "shopping agent",
+		title: "sourcing agent · antigravity + Google Search",
+	},
+];
+
 export function Dock({ chip, listening, levelRef, onToggle, onSend }: Props) {
 	const [text, setText] = useState("");
 	return (
-		<div className="dock-row">
+		<div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
 			<form
-				className="command"
 				onSubmit={(e) => {
 					e.preventDefault();
 					const t = text.trim();
@@ -23,77 +60,64 @@ export function Dock({ chip, listening, levelRef, onToggle, onSend }: Props) {
 					setText("");
 				}}
 			>
-				<input
-					value={text}
-					onChange={(e) => setText(e.target.value)}
-					placeholder={
-						chip === "fallback"
-							? "Mic unavailable — type a change…"
-							: "Or type a change and press Enter"
-					}
-					spellCheck={false}
-					aria-label="Type a command"
-				/>
-				<kbd>↵</kbd>
+				<InputGroup className="bg-card h-9 max-w-90 rounded-lg">
+					<InputGroupInput
+						value={text}
+						onChange={(e) => setText(e.target.value)}
+						placeholder={
+							chip === "fallback"
+								? "Mic unavailable — type a change…"
+								: "Or type a change and press Enter"
+						}
+						spellCheck={false}
+						aria-label="Type a command"
+						className="text-[13px]"
+					/>
+					<InputGroupAddon align="inline-end">
+						<Kbd>
+							<CornerDownLeft />
+						</Kbd>
+					</InputGroupAddon>
+				</InputGroup>
 			</form>
 
-			<button
-				className={`mic ${listening ? "mic-on" : ""} ${chip === "connecting" ? "mic-connecting" : ""}`}
+			<Button
 				onClick={onToggle}
+				className={cn(
+					"h-10 min-w-48 gap-2.5 rounded-full px-5 text-[13px] font-medium shadow-lg",
+					listening
+						? "bg-ok/15 text-foreground ring-ok/50 hover:bg-ok/20 ring-1"
+						: "bg-foreground text-background hover:bg-foreground/90",
+					chip === "connecting" && "animate-breathe",
+				)}
 			>
 				{listening ? (
 					<>
 						<Meter levelRef={levelRef} />
-						<span className="mic-label">
-							{chip === "connecting" ? "Connecting…" : "Listening…"}
-						</span>
-						<span className="mic-stop">
-							<i /> Stop
+						<span>{chip === "connecting" ? "Connecting…" : "Listening…"}</span>
+						<span className="text-muted-foreground flex items-center gap-1.5">
+							<i className="bg-bad size-2 rounded-[2px]" /> Stop
 						</span>
 					</>
 				) : (
 					<>
-						<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-							<rect
-								x="5.5"
-								y="1.5"
-								width="5"
-								height="8.5"
-								rx="2.5"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.4"
-							/>
-							<path
-								d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="1.4"
-								strokeLinecap="round"
-							/>
-						</svg>
-						<span className="mic-label">Start talking</span>
-						<kbd>Space</kbd>
+						<Mic />
+						<span>Start talking</span>
+						<Kbd className="bg-background/10 text-background/70">Space</Kbd>
 					</>
 				)}
-			</button>
+			</Button>
 
-			<div className="legend">
-				<span title="orchestrator · gemini-4-hydrogen">
-					<i className="dot dot-patch" /> orchestrator · hydrogen
-				</span>
-				<span title="designer · gemini-4-argon (whole-room requests)">
-					<i className="dot dot-designer" /> designer · argon
-				</span>
-				<span title="3D models · managed agent (antigravity)">
-					<i className="dot dot-asset" /> 3D agent
-				</span>
-				<span title="images and photoreal renders · nano-banana">
-					<i className="dot dot-decal" /> image · nano-banana
-				</span>
-				<span title="sourcing agent · antigravity + Google Search">
-					<i className="dot dot-source" /> shopping agent
-				</span>
+			<div className="text-muted-foreground flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-[11px]">
+				{LEGEND.map((l) => (
+					<span
+						key={l.agent}
+						title={l.title}
+						className="flex items-center gap-1.5 whitespace-nowrap"
+					>
+						<Dot agent={l.agent} /> {l.label}
+					</span>
+				))}
 			</div>
 		</div>
 	);
@@ -132,9 +156,9 @@ function Meter({ levelRef }: { levelRef: MutableRefObject<number> }) {
 		return () => cancelAnimationFrame(raf);
 	}, [levelRef]);
 	return (
-		<span className="meter" ref={ref} aria-hidden>
+		<span className="flex h-4 items-center gap-0.5" ref={ref} aria-hidden>
 			{Array.from({ length: BARS }, (_, i) => (
-				<i key={i} />
+				<i key={i} className="bg-ok h-full w-0.5 origin-center rounded-full" />
 			))}
 		</span>
 	);
