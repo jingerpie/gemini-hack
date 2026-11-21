@@ -715,7 +715,12 @@ export class TaskManager {
       {
         id: uid(job.kind === "asset" ? "a" : "d"),
         kind: job.kind,
-        title: job.kind === "asset" ? `Build: ${job.name}` : `Image: ${decalName(job, ops, this.engine)}`,
+        title:
+          job.kind === "asset"
+            ? job.catalogId
+              ? `From catalog: ${catalogTitle(job, ops, this.engine)}`
+              : `Build: ${job.name}`
+            : `Image: ${decalName(job, ops, this.engine)}`,
         parentId,
         targetId: job.kind === "asset" ? job.objectId : job.decalId,
         startAt: at,
@@ -723,7 +728,9 @@ export class TaskManager {
         statusLine: queued
           ? `waiting for a free slot (max ${MAX_RUNNING[kind]} at once)`
           : job.kind === "asset"
-            ? "dispatching to managed agent…"
+            ? job.catalogId
+              ? "loading catalog model…"
+              : "dispatching to managed agent…"
             : "generating image…",
         claim:
           job.kind === "asset"
@@ -749,6 +756,8 @@ export class TaskManager {
     if (
       job.kind === "asset" &&
       allowShop &&
+      !job.catalogId &&
+      !hasCatalogProduct(job.objectId, ops, this.engine) &&
       this.shopEnabled &&
       this.api?.source &&
       ops.some((op) => op.op === "add" && op.id === job.objectId) &&
@@ -935,7 +944,9 @@ export class TaskManager {
     try {
       if (!this.api) throw new Error("api not ready");
       await this.api.asset(
-        { objectId: job.objectId, name: job.name, description: job.description, size: job.size, ...(currentCode ? { currentCode } : {}) },
+        job.catalogId
+          ? { objectId: job.objectId, name: job.name, description: job.description, size: job.size, catalogId: job.catalogId }
+          : { objectId: job.objectId, name: job.name, description: job.description, size: job.size, ...(currentCode ? { currentCode } : {}) },
         abort.signal,
         (e) => {
           if (!this.isLive(taskId)) return;
@@ -1003,7 +1014,10 @@ export class TaskManager {
         status: "done",
         endAt: end,
         ms,
-        statusLine: `model ready · ${lines} lines · ${done.via}${statusCount ? ` · ${statusCount} steps` : ""}`,
+        statusLine:
+          done.via === "catalog"
+            ? "from catalog"
+            : `model ready · ${lines} lines · ${done.via}${statusCount ? ` · ${statusCount} steps` : ""}`,
       });
       this.log("asset", `setAssetCode ${job.objectId} (${lines} lines, ${done.via})`, ms);
       this.verify(taskId, t.claim ?? job.name);
@@ -1193,6 +1207,37 @@ function pickTarget(ops: Op[]): string | undefined {
     if (op.op !== "remove" && op.op !== "remove_decal") return opTarget(op);
   }
   return undefined;
+}
+
+/** The catalog product title for an asset job (from the op that added/updated the object, else the scene). */
+function catalogTitle(job: Extract<Job, { kind: "asset" }>, ops: Op[], engine: Engine | null): string {
+  let title = "";
+  for (const op of ops) {
+    if (op.op === "add" && op.id === job.objectId) title = op.object.product?.title ?? title;
+    if (op.op === "update" && op.id === job.objectId) title = op.changes.product?.title ?? title;
+  }
+  if (!title && engine) {
+    try {
+      title = engine.getScene().objects.find((o) => o.id === job.objectId)?.product?.title ?? "";
+    } catch {
+      /* ignore */
+    }
+  }
+  const s = (title || job.name).trim().replace(/\s+/g, " ");
+  return s.length > 40 ? s.slice(0, 39) + "…" : s;
+}
+
+/** True when the object already is a catalog product (no "shop the look" search for it). */
+function hasCatalogProduct(objectId: string, ops: Op[], engine: Engine | null): boolean {
+  for (const op of ops) {
+    if (op.op === "add" && op.id === objectId && op.object.product?.catalogId) return true;
+    if (op.op === "update" && op.id === objectId && op.changes.product?.catalogId) return true;
+  }
+  try {
+    return !!engine?.getScene().objects.find((o) => o.id === objectId)?.product?.catalogId;
+  } catch {
+    return false;
+  }
 }
 
 function decalName(job: Extract<Job, { kind: "decal" }>, ops: Op[], engine: Engine | null) {

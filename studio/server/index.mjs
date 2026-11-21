@@ -6,6 +6,9 @@ import { buildAsset, assetConfig } from './asset.mjs';
 import { decal, token, verify, IMAGE_MODEL, LIVE_MODEL, DECISION_MODEL } from './media.mjs';
 import { sourceProducts, proxyImage, SOURCE_AGENT, SOURCE_DIRECT_MODEL } from './source.mjs';
 import { render } from './render.mjs';
+// Catalog and Shop modules are owned by other agents: import defensively so a broken file cannot stop the server.
+const CATALOG = await import('./catalog.mjs').catch(e => { console.log('catalog.mjs not loaded: ' + e.message); return {}; });
+const SHOP = await import('./shop.mjs').catch(e => { console.log('shop.mjs not loaded: ' + e.message); return {}; });
 
 const PORT = +(process.env.PORT || 8787);
 const CORS = {
@@ -30,7 +33,9 @@ function json(res, status, obj) {
 async function handle(req, res, url, note) {
   const route = `${req.method} ${url.pathname}`;
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
-  if (route === 'GET /api/health') return json(res, 200, { ok: true, gemini: geminiStats, models: { patch: PATCH_MODEL, designer: DESIGNER_MODEL, asset: assetConfig, image: IMAGE_MODEL, live: LIVE_MODEL, decision: DECISION_MODEL, source: { agent: SOURCE_AGENT, direct: SOURCE_DIRECT_MODEL } } });
+  if (CATALOG.handleCatalog?.(req, res, url)) return; // GET /api/catalog
+  if (SHOP.handleShop && await SHOP.handleShop(req, res, url, note)) return; // GET /api/shop/search, POST /api/checkout
+  if (route === 'GET /api/health') return json(res, 200, { ok: true, gemini: geminiStats, models: { patch: PATCH_MODEL, designer: DESIGNER_MODEL, asset: assetConfig, image: IMAGE_MODEL, live: LIVE_MODEL, decision: DECISION_MODEL, source: { agent: SOURCE_AGENT, direct: SOURCE_DIRECT_MODEL } }, catalog: CATALOG.catalogStats?.() || null });
 
   if (route === 'POST /api/patch') {
     const body = await readJson(req);
@@ -43,10 +48,13 @@ async function handle(req, res, url, note) {
 
   if (route === 'POST /api/asset') {
     const body = await readJson(req);
-    if (!body.description && !body.name) return json(res, 400, { error: 'description required' });
+    if (!body.description && !body.name && !body.catalogId) return json(res, 400, { error: 'description required' });
     const mode = ['direct', 'agent', 'race'].includes(url.searchParams.get('via')) ? url.searchParams.get('via') : 'race';
     res.writeHead(200, { ...CORS, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     res.flushHeaders?.();
+    // Catalog product: its pre-built model at once, no model call.
+    const catEv = body.catalogId ? CATALOG.catalogAssetEvent?.(body.catalogId) : null;
+    if (catEv) { res.end(`data: ${JSON.stringify(catEv)}\n\n`); note(`${body.objectId || ''} catalog ${body.catalogId} -> done via catalog (${catEv.code.length} chars)`); return; }
     const ctl = new AbortController();
     res.on('close', () => { if (!res.writableFinished) ctl.abort(new Error('client disconnected')); });
     const ping = setInterval(() => res.write(': ping\n\n'), 10000);
