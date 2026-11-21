@@ -5,6 +5,7 @@ import { cors } from "hono/cors";
 import { assetConfig, buildAsset } from "./asset.mjs";
 import { note, readJson, sse } from "./http.mjs";
 import { stats as geminiStats, scrub } from "./lib.mjs";
+import { libraryAssetEvent, librarySave } from "./library.mjs";
 import {
 	DECISION_MODEL,
 	decal,
@@ -131,6 +132,17 @@ app.post("/api/asset", async (c) => {
 			);
 			return;
 		}
+		// A model made before for the same thing: from the library, no model call. Edits (currentCode) always build.
+		const fresh = !body.currentCode && body.name;
+		const libEv = fresh ? libraryAssetEvent(body.name) : null;
+		if (libEv) {
+			send(libEv);
+			note(
+				c,
+				`${body.objectId || ""} "${String(body.name).slice(0, 40)}" -> done via ${libEv.model} (${libEv.code.length} chars)`,
+			);
+			return;
+		}
 		let last = null;
 		try {
 			last = await buildAsset(body, {
@@ -145,6 +157,13 @@ app.post("/api/asset", async (c) => {
 		} catch (e) {
 			send({ type: "error", message: scrub(e.message || e) });
 			last = { type: "error" };
+		}
+		if (fresh && last?.type === "done") {
+			try {
+				librarySave(body.name, last.code);
+			} catch (e) {
+				console.log(`library save failed: ${e.message}`);
+			}
 		}
 		note(
 			c,

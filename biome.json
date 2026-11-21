@@ -31,7 +31,8 @@
 			"!apps/web/public/draco",
 			"!apps/server/catalog-sizes.json",
 			"!apps/server/test/baseline",
-			"!packages/catalog/mock-shop"
+			"!packages/catalog/mock-shop",
+			"!packages/catalog/generated"
 		]
 	},
 	"formatter": {
