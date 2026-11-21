@@ -1,0 +1,24 @@
+{
+  "name": "@gemini-hack/auth",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check-types": "tsc -b"
+  },
+  "dependencies": {
+    "@better-auth/core": "1.7.22",
+    "@better-auth/drizzle-adapter": "1.7.22",
+    "@gemini-hack/db": "workspace:*",
+    "better-auth": "catalog:",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@gemini-hack/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

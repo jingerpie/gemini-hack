@@ -1,0 +1,3 @@
+{
+  "extends": "@gemini-hack/config/tsconfig.base.json"
+}
