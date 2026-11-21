@@ -198,7 +198,9 @@ export const httpApi: Api = {
       t.clear();
     }
   },
-  asset: (req, signal, onEvent) => postSse<AssetEvent>(`/api/asset${VIA ? `?via=${VIA}` : ""}`, req, signal, onEvent),
+  // catalog models never go to the agent / race: always the plain call (the server answers in well under a second)
+  asset: (req, signal, onEvent) =>
+    postSse<AssetEvent>(`/api/asset${VIA && !req.catalogId ? `?via=${VIA}` : ""}`, req, signal, onEvent),
   source: (req, signal, onEvent) => postSse<SourceEvent>(`/api/source${VIA ? `?via=${VIA}` : ""}`, req, signal, onEvent),
   decal: (req, signal) => postJson<DecalResponse>("/api/decal", req, signal),
   verify: (req, signal) => postJson<VerifyResponse>("/api/verify", req, signal),
