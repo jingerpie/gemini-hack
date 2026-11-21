@@ -5,11 +5,8 @@ import type {
 	AssetRequest,
 	CheckoutRequest,
 	CheckoutResponse,
-	ChooseRequest,
-	ChooseResponse,
 	DecalRequest,
 	DecalResponse,
-	OptionsResponse,
 	PatchRequest,
 	PatchResponse,
 	RenderRequest,
@@ -38,15 +35,6 @@ export interface Api {
 	): Promise<void>;
 	/** Photoreal render of a canvas screenshot. Optional (mocks may lack it). */
 	render?(req: RenderRequest, signal: AbortSignal): Promise<RenderResponse>;
-	/** Next page of option cards (live search). A missing route throws NotAvailableError. */
-	options?(
-		q: string,
-		page: number,
-		objectId: string,
-		signal?: AbortSignal,
-	): Promise<OptionsResponse>;
-	/** Ops + jobs that put the chosen product on the object (no model call). */
-	choose?(req: ChooseRequest, signal?: AbortSignal): Promise<ChooseResponse>;
 	/** Real checkout links, one per merchant. */
 	checkout?(
 		req: CheckoutRequest,
@@ -271,12 +259,6 @@ export const httpApi: Api = {
 		),
 	decal: (req, signal) => postJson<DecalResponse>("/api/decal", req, signal),
 	verify: (req, signal) => postJson<VerifyResponse>("/api/verify", req, signal),
-	options: (q, page, objectId, signal) =>
-		getJson<OptionsResponse>(
-			`/api/options?q=${encodeURIComponent(q)}&page=${page}&objectId=${encodeURIComponent(objectId)}`,
-			signal,
-		),
-	choose: (req, signal) => postJson<ChooseResponse>("/api/choose", req, signal),
 	checkout: (req, signal) =>
 		postJson<CheckoutResponse>("/api/checkout", req, signal),
 	async render(req, signal) {
