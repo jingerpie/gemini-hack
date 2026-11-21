@@ -22,7 +22,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "wool-upholstered-sofa-pack-c7979758d79fd136",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/d5e19fc082a0b5beb92cdb85f932c97b7e7421cf6e90e330ea49ee4250439c03.png",
-    "imageFile": "sofa/02-wool-upholstered-sofa.png"
+    "imageFile": "sofa/02-wool-upholstered-sofa.png",
+    "modelFile": "sofa/02-wool-upholstered-sofa.build.js"
   },
   {
     "kind": "sofa",
@@ -34,7 +35,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "junction",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/aab2fef03837591922e6b876e991e87a73386a5680b7f750b471a6c58e6c216f.png",
-    "imageFile": "sofa/03-junction.png"
+    "imageFile": "sofa/03-junction.png",
+    "modelFile": "sofa/03-junction.build.js"
   },
   {
     "kind": "sofa",
@@ -46,7 +48,8 @@
     "store": "the-gathering-room-44437d61-feed-orvenoria-64caa630",
     "handle": "interlude",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/44437d61-2caf-4bb8-96d8-f573455f4e02/3bd4198913b191fac08bfe8c3395ec7d7b1556019b3bb64caef31ee44dc1e5de.png",
-    "imageFile": "sofa/04-interlude.png"
+    "imageFile": "sofa/04-interlude.png",
+    "modelFile": "sofa/04-interlude.build.js"
   },
   {
     "kind": "sofa",
@@ -58,7 +61,8 @@
     "store": "the-inhabited-room-2c64beae",
     "handle": "stella-sculpted-sofa-pack-ce2dc5d9c25b0160",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/2c64beae-af44-488b-a388-8f762dc4985e/84bfc0a2280bb629d266dfd1c6f3a1081b45767617e981d5f3bc66e8b3633179.png",
-    "imageFile": "sofa/05-stella-sculpted-sofa.png"
+    "imageFile": "sofa/05-stella-sculpted-sofa.png",
+    "modelFile": "sofa/05-stella-sculpted-sofa.build.js"
   },
   {
     "kind": "armchair",
@@ -83,7 +87,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "pendulum",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/ce7b27034cbeef7ea8c80ed109c24c98f2a0cdaebf1a85cad062b85289f1f2b1.png",
-    "imageFile": "armchair/02-pendulum.png"
+    "imageFile": "armchair/02-pendulum.png",
+    "modelFile": "armchair/02-pendulum.build.js"
   },
   {
     "kind": "armchair",
@@ -95,7 +100,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "oak-lounge-armchair-pack-dfe1cf7c2e362392",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/278750be5bbc948658388c9494e6a0781bed39d985850cec68248147ac5a49db.png",
-    "imageFile": "armchair/03-oak-lounge-armchair.png"
+    "imageFile": "armchair/03-oak-lounge-armchair.png",
+    "modelFile": "armchair/03-oak-lounge-armchair.build.js"
   },
   {
     "kind": "armchair",
@@ -107,7 +113,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "nightfall",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/614c25ffa4c0b7d3cbbaa2365704be8ba9828df0442812e369228a21ad9ee594.png",
-    "imageFile": "armchair/04-nightfall.png"
+    "imageFile": "armchair/04-nightfall.png",
+    "modelFile": "armchair/04-nightfall.build.js"
   },
   {
     "kind": "armchair",
@@ -119,7 +126,8 @@
     "store": "the-object-register-bd6eaf64-feed-desk-to-drinks-605d453a",
     "handle": "scroll-arms",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bd6eaf64-74eb-4fdd-be25-207e5852f0b8/dd6de1104f5dbd9af85b878f6c693642cf78a6bc7a5e76bc506e624b4087fbd4.png",
-    "imageFile": "armchair/05-scroll-arms.png"
+    "imageFile": "armchair/05-scroll-arms.png",
+    "modelFile": "armchair/05-scroll-arms.build.js"
   },
   {
     "kind": "dining-chair",
@@ -144,7 +152,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "crest",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/67a72aa069e64e049816fa0231ca41d2a0b255afaf07728dd1206cde5cdd5725.png",
-    "imageFile": "dining-chair/02-crest.png"
+    "imageFile": "dining-chair/02-crest.png",
+    "modelFile": "dining-chair/02-crest.build.js"
   },
   {
     "kind": "dining-chair",
@@ -156,7 +165,8 @@
     "store": "quiet-span-a46772a1",
     "handle": "curve",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/09286c3b8d5a9886f81adfc0996910c6416435a85d99e00697b119fe0b0b14d5.png",
-    "imageFile": "dining-chair/03-curve.png"
+    "imageFile": "dining-chair/03-curve.png",
+    "modelFile": "dining-chair/03-curve.build.js"
   },
   {
     "kind": "dining-chair",
@@ -168,7 +178,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "hinge",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/2124f6bb6206ab9ac2bb5261ec92f241c34b32cedc50fc3183c159027099aa3d.png",
-    "imageFile": "dining-chair/04-hinge.png"
+    "imageFile": "dining-chair/04-hinge.png",
+    "modelFile": "dining-chair/04-hinge.build.js"
   },
   {
     "kind": "dining-chair",
@@ -180,7 +191,8 @@
     "store": "the-inhabited-room-2c64beae",
     "handle": "arc-dining-chair",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/2c64beae-af44-488b-a388-8f762dc4985e/6a1db40e409849fdf2ab9e86787886f58cd3ea3cd44c53e342b6c887459e7473.png",
-    "imageFile": "dining-chair/05-arc.png"
+    "imageFile": "dining-chair/05-arc.png",
+    "modelFile": "dining-chair/05-arc.build.js"
   },
   {
     "kind": "office-chair",
@@ -205,7 +217,8 @@
     "store": "desk-seat-0f595023-feed-aero-minimalism-34e6d992",
     "handle": "soft-landing",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/0f595023-eef9-48e1-96dd-f2de5181e68d/96b1612831ebbab94611dee2c1ec070060c61eb290b4cea8fceb599534eecad7.png",
-    "imageFile": "office-chair/02-soft-landing.png"
+    "imageFile": "office-chair/02-soft-landing.png",
+    "modelFile": "office-chair/02-soft-landing.build.js"
   },
   {
     "kind": "office-chair",
@@ -217,7 +230,8 @@
     "store": "desk-seat-0f595023-feed-aero-minimalism-34e6d992",
     "handle": "tuck-away",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/0f595023-eef9-48e1-96dd-f2de5181e68d/52f68832f25d59376abca0dae61ed93f4cb59bfb8e6f940296c5379cbd1f6cde.png",
-    "imageFile": "office-chair/03-tuck-away.png"
+    "imageFile": "office-chair/03-tuck-away.png",
+    "modelFile": "office-chair/03-tuck-away.build.js"
   },
   {
     "kind": "office-chair",
@@ -229,7 +243,8 @@
     "store": "quiet-span-a46772a1",
     "handle": "pivot",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/509e12666d870e9b13aa05f930fbf16ae37ea179b548d1fdbe41e8eaaafea9c7.png",
-    "imageFile": "office-chair/04-pivot.png"
+    "imageFile": "office-chair/04-pivot.png",
+    "modelFile": "office-chair/04-pivot.build.js"
   },
   {
     "kind": "office-chair",
@@ -241,7 +256,8 @@
     "store": "room-for-work-4d0434dc-feed-aero-minimalism-34e6d992",
     "handle": "working-posture",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/4d0434dc-01fb-44af-ae0a-0c01cab3a44b/7223e36c5360749782cb30b28586f14bbb2244d295f290d75d333086a099d0ce.png",
-    "imageFile": "office-chair/05-working-posture.png"
+    "imageFile": "office-chair/05-working-posture.png",
+    "modelFile": "office-chair/05-working-posture.build.js"
   },
   {
     "kind": "stool",
@@ -266,7 +282,8 @@
     "store": "little-room-works-9f571405",
     "handle": "little-stack",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/9f571405-f1d0-43b3-b604-36375f0cf016/5d9698965874b8f16fcf4c9ac3421453b865f1094e76b50cdd397ee6dcbf0ada.png",
-    "imageFile": "stool/02-little-stack.png"
+    "imageFile": "stool/02-little-stack.png",
+    "modelFile": "stool/02-little-stack.build.js"
   },
   {
     "kind": "stool",
@@ -278,7 +295,8 @@
     "store": "quiet-span-a46772a1",
     "handle": "perch",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/51653f6338ea791f255c2d181ed26c3033b53c69f99eed892600b484db923be8.png",
-    "imageFile": "stool/03-perch.png"
+    "imageFile": "stool/03-perch.png",
+    "modelFile": "stool/03-perch.build.js"
   },
   {
     "kind": "stool",
@@ -290,7 +308,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "perch",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/f955b1af8160c03ba6aedf3efda8ba75415329a537a92c1388f3adfc2c1425ca.png",
-    "imageFile": "stool/04-perch.png"
+    "imageFile": "stool/04-perch.png",
+    "modelFile": "stool/04-perch.build.js"
   },
   {
     "kind": "stool",
@@ -302,7 +321,8 @@
     "store": "tuck-arrange-e56f76a6",
     "handle": "stackable-stool",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/e56f76a6-28da-48bc-a7bc-41e70f58099a/c0d294cafbdb4a60fbd67f31a2440e1ddd61207222a899a1f791bfee2e3c6625.png",
-    "imageFile": "stool/05-ready-stack.png"
+    "imageFile": "stool/05-ready-stack.png",
+    "modelFile": "stool/05-ready-stack.build.js"
   },
   {
     "kind": "bench",
@@ -327,7 +347,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "rail",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/104cfbd63b8e7836d4e58c9e4a673fea731a54ab4d860e37c657c73dbb074482.png",
-    "imageFile": "bench/02-rail.png"
+    "imageFile": "bench/02-rail.png",
+    "modelFile": "bench/02-rail.build.js"
   },
   {
     "kind": "bench",
@@ -339,7 +360,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "arrival",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/b2f7bc846391a9f362a093acafdd4844a5de16a83593158e21111bf0b0bab4ac.png",
-    "imageFile": "bench/03-arrival.png"
+    "imageFile": "bench/03-arrival.png",
+    "modelFile": "bench/03-arrival.build.js"
   },
   {
     "kind": "bench",
@@ -351,7 +373,8 @@
     "store": "the-inhabited-room-2c64beae",
     "handle": "pause-bench",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/2c64beae-af44-488b-a388-8f762dc4985e/8bae039749ada6ad8e53e0073e54fa09db3727fe70f3a9caada29806aa9782c0.png",
-    "imageFile": "bench/04-pause.png"
+    "imageFile": "bench/04-pause.png",
+    "modelFile": "bench/04-pause.build.js"
   },
   {
     "kind": "bench",
@@ -363,7 +386,8 @@
     "store": "tuck-arrange-e56f76a6",
     "handle": "entryway-bench-with-cubbies",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/e56f76a6-28da-48bc-a7bc-41e70f58099a/1e52261166b69afa2379825fd301784ce47e3fa1bc4e214ba9e07b3d623ebf3f.png",
-    "imageFile": "bench/05-arrival-seat.png"
+    "imageFile": "bench/05-arrival-seat.png",
+    "modelFile": "bench/05-arrival-seat.build.js"
   },
   {
     "kind": "ottoman",
@@ -388,7 +412,8 @@
     "store": "moroccan-home-and-hammam-396e8447",
     "handle": "embroidered-leather-pouf-pack-9a2ac6e4a7a69005",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/396e8447-e79f-48d3-be0c-be0a70592e12/ab4122bcf86207f2b296c66bfdf2de24fdbb5fc1d87579ece14c3864e23e4b82.png",
-    "imageFile": "ottoman/02-embroidered-leather-pouf.png"
+    "imageFile": "ottoman/02-embroidered-leather-pouf.png",
+    "modelFile": "ottoman/02-embroidered-leather-pouf.build.js"
   },
   {
     "kind": "ottoman",
@@ -400,7 +425,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "interlude",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/c1b9f0982d7ed0e4b6b20709a7d9ec00bbc293eb6ebf88ee9350a8d030e7b547.png",
-    "imageFile": "ottoman/03-interlude.png"
+    "imageFile": "ottoman/03-interlude.png",
+    "modelFile": "ottoman/03-interlude.build.js"
   },
   {
     "kind": "ottoman",
@@ -412,7 +438,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "stow",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/2efb21e0f366a5c243fca0830083db886f5aaf76df22c5710300b65733489295.png",
-    "imageFile": "ottoman/04-stow.png"
+    "imageFile": "ottoman/04-stow.png",
+    "modelFile": "ottoman/04-stow.build.js"
   },
   {
     "kind": "ottoman",
@@ -424,7 +451,8 @@
     "store": "tuck-arrange-e56f76a6",
     "handle": "storage-ottoman",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/e56f76a6-28da-48bc-a7bc-41e70f58099a/f49e141ae5aaf3fe14cea09b99866cf49c84147efe351fac5eb0ab5e8a4b0ae0.png",
-    "imageFile": "ottoman/05-hidden-comfort.png"
+    "imageFile": "ottoman/05-hidden-comfort.png",
+    "modelFile": "ottoman/05-hidden-comfort.build.js"
   },
   {
     "kind": "dining-table",
@@ -449,7 +477,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "walnut-dining-table-pack-8999f93c90e26ad2",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/f379f911250876b44e37d3b8d0a23c17f2ec9c04ab4736f939f9b557006e303e.png",
-    "imageFile": "dining-table/02-walnut-dining-table.png"
+    "imageFile": "dining-table/02-walnut-dining-table.png",
+    "modelFile": "dining-table/02-walnut-dining-table.build.js"
   },
   {
     "kind": "dining-table",
@@ -461,7 +490,8 @@
     "store": "quiet-span-a46772a1",
     "handle": "gather",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/e43d70f0cddf5bce10d41420bc84003e85425236ebb32ca44668e690eed7b032.png",
-    "imageFile": "dining-table/03-gather.png"
+    "imageFile": "dining-table/03-gather.png",
+    "modelFile": "dining-table/03-gather.build.js"
   },
   {
     "kind": "dining-table",
@@ -473,7 +503,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "wing",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/fc2ff21505f3a947e4ece7233f5bf78975b463d59eeedc2ebb6d15676f0bc4e6.png",
-    "imageFile": "dining-table/04-wing.png"
+    "imageFile": "dining-table/04-wing.png",
+    "modelFile": "dining-table/04-wing.build.js"
   },
   {
     "kind": "dining-table",
@@ -485,7 +516,8 @@
     "store": "the-inhabited-room-2c64beae",
     "handle": "orion-oak-dining-table-pack-a6eef76c8a508bee",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/2c64beae-af44-488b-a388-8f762dc4985e/d9f0369edcd224cded3d00a301cfea7e9e902c2c55033b252c672932f3e6d084.png",
-    "imageFile": "dining-table/05-orion-oak-dining-table.png"
+    "imageFile": "dining-table/05-orion-oak-dining-table.png",
+    "modelFile": "dining-table/05-orion-oak-dining-table.build.js"
   },
   {
     "kind": "coffee-table",
@@ -510,7 +542,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "terrace",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/d6803d66f7d177e03f8367aac1d4447403e89f3aec032fe71f5f8af7a131158c.png",
-    "imageFile": "coffee-table/02-terrace.png"
+    "imageFile": "coffee-table/02-terrace.png",
+    "modelFile": "coffee-table/02-terrace.build.js"
   },
   {
     "kind": "coffee-table",
@@ -522,7 +555,8 @@
     "store": "quiet-span-066c8a09",
     "handle": "coffee-table",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/0b2bd3d6877b0bd9f05079581fca64c4ef8c81fe9a9796fcbb79ead34a13659e.png",
-    "imageFile": "coffee-table/03-low-span.png"
+    "imageFile": "coffee-table/03-low-span.png",
+    "modelFile": "coffee-table/03-low-span.build.js"
   },
   {
     "kind": "coffee-table",
@@ -534,7 +568,8 @@
     "store": "quiet-span-a46772a1",
     "handle": "plane",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/2112b927987690fe37924e970a23fc0d82ec0eb9efe4dea5597c9742421e3e19.png",
-    "imageFile": "coffee-table/04-plane.png"
+    "imageFile": "coffee-table/04-plane.png",
+    "modelFile": "coffee-table/04-plane.build.js"
   },
   {
     "kind": "coffee-table",
@@ -546,7 +581,8 @@
     "store": "tuck-arrange-e56f76a6",
     "handle": "modular-oak-coffee-table-pack-1938366b5b36a3a2",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/e56f76a6-28da-48bc-a7bc-41e70f58099a/c458230ea7d1e8a10c37f05538e65e9e83f458e278076ab16de16d9f3d7eb012.png",
-    "imageFile": "coffee-table/05-modular-oak-coffee-table.png"
+    "imageFile": "coffee-table/05-modular-oak-coffee-table.png",
+    "modelFile": "coffee-table/05-modular-oak-coffee-table.build.js"
   },
   {
     "kind": "side-table",
@@ -571,7 +607,8 @@
     "store": "plane-and-plinth-a3d53c13",
     "handle": "axial",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a3d53c13-f572-4d4a-8e00-2aa8fda13995/9eea8a522c5e483b5d0ad3e59e72ef0ebf3e46c7c8355b34f52d204a47163b41.png",
-    "imageFile": "side-table/02-axial.png"
+    "imageFile": "side-table/02-axial.png",
+    "modelFile": "side-table/02-axial.build.js"
   },
   {
     "kind": "side-table",
@@ -583,7 +620,8 @@
     "store": "plane-and-plinth-a3d53c13",
     "handle": "sidecar",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a3d53c13-f572-4d4a-8e00-2aa8fda13995/fbc38d5e50bb41e9c72e665a760e5616faa4a031ceb7cf521a5c5e100db89c30.png",
-    "imageFile": "side-table/03-sidecar.png"
+    "imageFile": "side-table/03-sidecar.png",
+    "modelFile": "side-table/03-sidecar.build.js"
   },
   {
     "kind": "side-table",
@@ -595,7 +633,8 @@
     "store": "the-inhabited-room-2c64beae",
     "handle": "niche-side-table",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/2c64beae-af44-488b-a388-8f762dc4985e/85cb2dc4f76cf8c1ffeb437cbca777fb5a3b5985b2a084e0ead152e72ec3bcc2.png",
-    "imageFile": "side-table/04-niche.png"
+    "imageFile": "side-table/04-niche.png",
+    "modelFile": "side-table/04-niche.build.js"
   },
   {
     "kind": "side-table",
@@ -607,7 +646,8 @@
     "store": "the-object-register-bd6eaf64-feed-desk-to-drinks-605d453a",
     "handle": "tripod-pedestal",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bd6eaf64-74eb-4fdd-be25-207e5852f0b8/fb9d81ea90df9c43aeb48f62ca4c299d1c3b3ffa410568e8f0d1e59ecf0b240f.png",
-    "imageFile": "side-table/05-tripod-pedestal.png"
+    "imageFile": "side-table/05-tripod-pedestal.png",
+    "modelFile": "side-table/05-tripod-pedestal.build.js"
   },
   {
     "kind": "console-table",
@@ -632,7 +672,8 @@
     "store": "quiet-span-066c8a09",
     "handle": "console-table",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/624641c90bbfc6a713070e9c8a23231c6122d37f9a050c3db62a229c66731f11.png",
-    "imageFile": "console-table/02-entry-span.png"
+    "imageFile": "console-table/02-entry-span.png",
+    "modelFile": "console-table/02-entry-span.build.js"
   },
   {
     "kind": "console-table",
@@ -644,7 +685,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "span",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/7d9ef63a7e7d1ad780ff82b081d8715795d587497e205a8ed2b206521f40dc04.png",
-    "imageFile": "console-table/03-span.png"
+    "imageFile": "console-table/03-span.png",
+    "modelFile": "console-table/03-span.build.js"
   },
   {
     "kind": "console-table",
@@ -656,7 +698,8 @@
     "store": "the-inhabited-room-2c64beae",
     "handle": "lintel-console-table",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/2c64beae-af44-488b-a388-8f762dc4985e/107eafa28629c7d924420e8296fa1feaa18041662be85e0a93944a5ed7f245ee.png",
-    "imageFile": "console-table/04-lintel.png"
+    "imageFile": "console-table/04-lintel.png",
+    "modelFile": "console-table/04-lintel.build.js"
   },
   {
     "kind": "console-table",
@@ -668,7 +711,8 @@
     "store": "the-object-register-bd6eaf64-feed-desk-to-drinks-605d453a",
     "handle": "pier-gallery",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bd6eaf64-74eb-4fdd-be25-207e5852f0b8/a7b37cc537e87288de9d8ab5abc6a34593ed62ed384d9b584a6f1d0fb141a75b.png",
-    "imageFile": "console-table/05-pier-gallery.png"
+    "imageFile": "console-table/05-pier-gallery.png",
+    "modelFile": "console-table/05-pier-gallery.build.js"
   },
   {
     "kind": "desk",
@@ -693,7 +737,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "folio",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/629a6c3381ce07e72c4d59d4d0dace7d7cb5f672709ec4dbe5cd86109c94b0ec.png",
-    "imageFile": "desk/02-folio.png"
+    "imageFile": "desk/02-folio.png",
+    "modelFile": "desk/02-folio.build.js"
   },
   {
     "kind": "desk",
@@ -705,7 +750,8 @@
     "store": "quiet-span-066c8a09",
     "handle": "desk",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/919c66a7b336603edc96e3f162a5c8cf1a1d57956c805c0b9c51a7f0ad83fd80.png",
-    "imageFile": "desk/03-focus.png"
+    "imageFile": "desk/03-focus.png",
+    "modelFile": "desk/03-focus.build.js"
   },
   {
     "kind": "desk",
@@ -717,7 +763,8 @@
     "store": "room-for-work-4d0434dc-feed-aero-minimalism-34e6d992",
     "handle": "daily-rise",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/4d0434dc-01fb-44af-ae0a-0c01cab3a44b/fad6db08ac37037bdc77060831242fd48fe5a1836c94383ef0585ff9dd77cef8.png",
-    "imageFile": "desk/04-daily-rise.png"
+    "imageFile": "desk/04-daily-rise.png",
+    "modelFile": "desk/04-daily-rise.build.js"
   },
   {
     "kind": "desk",
@@ -729,7 +776,8 @@
     "store": "the-object-register-bd6eaf64-feed-desk-to-drinks-605d453a",
     "handle": "pigeonhole-fall-front",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bd6eaf64-74eb-4fdd-be25-207e5852f0b8/d6a09a791f621bed2140aa7f81922b0d890431baadb7635ae6f42e389bbea2a4.png",
-    "imageFile": "desk/05-pigeonhole-fall-front.png"
+    "imageFile": "desk/05-pigeonhole-fall-front.png",
+    "modelFile": "desk/05-pigeonhole-fall-front.build.js"
   },
   {
     "kind": "bed",
@@ -754,7 +802,8 @@
     "store": "little-room-works-9f571405",
     "handle": "cloud-ladder",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/9f571405-f1d0-43b3-b604-36375f0cf016/c3f413b930bfd80df6ab38fa8f6d7c2d37137452613c138b63bafb9f3238aac6.png",
-    "imageFile": "bed/02-cloud-ladder.png"
+    "imageFile": "bed/02-cloud-ladder.png",
+    "modelFile": "bed/02-cloud-ladder.build.js"
   },
   {
     "kind": "bed",
@@ -766,7 +815,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "channel",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/9dd4493aeae7f89d276835d313767613adf8be8714d225d9b24486ddb8c94f85.png",
-    "imageFile": "bed/03-channel.png"
+    "imageFile": "bed/03-channel.png",
+    "modelFile": "bed/03-channel.build.js"
   },
   {
     "kind": "bed",
@@ -778,7 +828,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "framework",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/d51e1fe68748e07e2c638caf3c47c16489579445b61da59e11aaa3e6045cc775.png",
-    "imageFile": "bed/04-framework.png"
+    "imageFile": "bed/04-framework.png",
+    "modelFile": "bed/04-framework.build.js"
   },
   {
     "kind": "bed",
@@ -790,7 +841,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "haven",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/da7b8b04ea9f6a880ada9d1d07d7f5206483fa4bf5cc2c412875206182447c78.png",
-    "imageFile": "bed/05-haven.png"
+    "imageFile": "bed/05-haven.png",
+    "modelFile": "bed/05-haven.build.js"
   },
   {
     "kind": "nightstand",
@@ -815,7 +867,8 @@
     "store": "little-room-works-9f571405",
     "handle": "night-pocket",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/9f571405-f1d0-43b3-b604-36375f0cf016/f3fbd25749d2b818dd4f544af7d9c005bb54200294cb9486584f88f6eff625c2.png",
-    "imageFile": "nightstand/02-night-pocket.png"
+    "imageFile": "nightstand/02-night-pocket.png",
+    "modelFile": "nightstand/02-night-pocket.build.js"
   },
   {
     "kind": "nightstand",
@@ -827,7 +880,8 @@
     "store": "quiet-span-066c8a09",
     "handle": "bedside-table",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/6e4d4aa383b2b57ef354ccbc3b5fa0134c4f98e59d3efa92c86a2f31207ace0d.png",
-    "imageFile": "nightstand/03-night-keep.png"
+    "imageFile": "nightstand/03-night-keep.png",
+    "modelFile": "nightstand/03-night-keep.build.js"
   },
   {
     "kind": "nightstand",
@@ -839,7 +893,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "ledge",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/0123af190066fb279177614a9022557a4e0c1e7c574559dc2c9ff68fa9c93ebe.png",
-    "imageFile": "nightstand/04-ledge.png"
+    "imageFile": "nightstand/04-ledge.png",
+    "modelFile": "nightstand/04-ledge.build.js"
   },
   {
     "kind": "nightstand",
@@ -851,7 +906,8 @@
     "store": "the-inhabited-room-2c64beae",
     "handle": "ledge-nightstand",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/2c64beae-af44-488b-a388-8f762dc4985e/6ba0d242cf2f6fedb9c61564978915e8bb22246751f8bce2553a4fa59803934f.png",
-    "imageFile": "nightstand/05-ledge.png"
+    "imageFile": "nightstand/05-ledge.png",
+    "modelFile": "nightstand/05-ledge.build.js"
   },
   {
     "kind": "dresser",
@@ -876,7 +932,8 @@
     "store": "little-room-works-9f571405",
     "handle": "folded-favorites",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/9f571405-f1d0-43b3-b604-36375f0cf016/b3426742e6fe2f05dec177cf9e37184faf71db1f0fa4e6b5ed6b637c12b7a7ae.png",
-    "imageFile": "dresser/02-folded-favorites.png"
+    "imageFile": "dresser/02-folded-favorites.png",
+    "modelFile": "dresser/02-folded-favorites.build.js"
   },
   {
     "kind": "dresser",
@@ -888,7 +945,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "sequence",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/5e85051cbfdc8b8e07614115fef5faf73221e57da85dd631c24edacd9bd693ef.png",
-    "imageFile": "dresser/03-sequence.png"
+    "imageFile": "dresser/03-sequence.png",
+    "modelFile": "dresser/03-sequence.build.js"
   },
   {
     "kind": "dresser",
@@ -900,7 +958,8 @@
     "store": "room-assembly-85ecce2e-feed-aero-minimalism-34e6d992",
     "handle": "keepsake",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/85ecce2e-ad21-4306-b575-fb4ab3c88111/242f3275d3f7d4113f1d4abbfd02ddfefe2810956d971aeb443c9356ef9a1967.png",
-    "imageFile": "dresser/04-keepsake.png"
+    "imageFile": "dresser/04-keepsake.png",
+    "modelFile": "dresser/04-keepsake.build.js"
   },
   {
     "kind": "dresser",
@@ -912,7 +971,8 @@
     "store": "the-object-register-bd6eaf64-feed-desk-to-drinks-605d453a",
     "handle": "graduated-front",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bd6eaf64-74eb-4fdd-be25-207e5852f0b8/25c820f0b68c3e5847a4b87a0064ba9665ab0b3bb1b4d65a8c4629d8b051282b.png",
-    "imageFile": "dresser/05-graduated-front.png"
+    "imageFile": "dresser/05-graduated-front.png",
+    "modelFile": "dresser/05-graduated-front.build.js"
   },
   {
     "kind": "wardrobe",
@@ -937,7 +997,8 @@
     "store": "quiet-span-066c8a09",
     "handle": "walk-in-wardrobe-system",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/f1eb62b286a3169c114f8835dbf8b7e792b9b3e34263548ae71ddeccfd6d9422.png",
-    "imageFile": "wardrobe/02-dressing-grid.png"
+    "imageFile": "wardrobe/02-dressing-grid.png",
+    "modelFile": "wardrobe/02-dressing-grid.build.js"
   },
   {
     "kind": "wardrobe",
@@ -949,7 +1010,8 @@
     "store": "quiet-span-066c8a09",
     "handle": "warm-bone-closet-tower-pack-912e32db6b0256f1",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/a8d4e43eb61744e88aec3437cdc4c860e94f44d3d6f37c3391814d04aa550638.png",
-    "imageFile": "wardrobe/03-warm-bone-closet-tower.png"
+    "imageFile": "wardrobe/03-warm-bone-closet-tower.png",
+    "modelFile": "wardrobe/03-warm-bone-closet-tower.build.js"
   },
   {
     "kind": "wardrobe",
@@ -961,7 +1023,8 @@
     "store": "quiet-span-a46772a1",
     "handle": "enclose",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/304d397f56710f76fb45c3cb3a78fd01542c04c033adaeeda754ff1497792e49.png",
-    "imageFile": "wardrobe/04-enclose.png"
+    "imageFile": "wardrobe/04-enclose.png",
+    "modelFile": "wardrobe/04-enclose.build.js"
   },
   {
     "kind": "wardrobe",
@@ -973,7 +1036,8 @@
     "store": "the-ordered-jewel-52e096e4",
     "handle": "cabinet",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/52e096e4-6a87-4d24-95d3-77205beee0c5/840d8bed1c2e9cbaf1830e6842e7f387275158b74779e9a2757a83551a3cd784.png",
-    "imageFile": "wardrobe/05-cabinet.png"
+    "imageFile": "wardrobe/05-cabinet.png",
+    "modelFile": "wardrobe/05-cabinet.build.js"
   },
   {
     "kind": "bookcase",
@@ -998,7 +1062,8 @@
     "store": "garage-storage-wor-dcb681-feed-bake-central-pop-studio-c09d7458",
     "handle": "open-bay",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/7dab6a53-8fc8-4e59-8944-0c911b6ca81d/5e5c86974ec6a1b577ac1dbd8381d464917433bb547a66fe6b05cdfb84ce9252.png",
-    "imageFile": "bookcase/02-open-bay.png"
+    "imageFile": "bookcase/02-open-bay.png",
+    "modelFile": "bookcase/02-open-bay.build.js"
   },
   {
     "kind": "bookcase",
@@ -1010,7 +1075,8 @@
     "store": "little-room-works-9f571405",
     "handle": "story-steps",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/9f571405-f1d0-43b3-b604-36375f0cf016/d71b02eb272d104d7a9ae4cb399765a51f6d0295a3c0f1181d514b43a7131f9b.png",
-    "imageFile": "bookcase/03-story-steps.png"
+    "imageFile": "bookcase/03-story-steps.png",
+    "modelFile": "bookcase/03-story-steps.build.js"
   },
   {
     "kind": "bookcase",
@@ -1022,7 +1088,8 @@
     "store": "quiet-span-066c8a09",
     "handle": "built-in-bookcase",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/ea5bcf873ff58f62698e6fc9cf6acbd176ac5b3942ddd491e8482d73ed1d55b8.png",
-    "imageFile": "bookcase/04-reading-wall.png"
+    "imageFile": "bookcase/04-reading-wall.png",
+    "modelFile": "bookcase/04-reading-wall.build.js"
   },
   {
     "kind": "bookcase",
@@ -1034,7 +1101,8 @@
     "store": "quiet-span-a46772a1",
     "handle": "trace-warm-pewter-metal-shelving-unit-pack-b4757e3da8334fba",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a46772a1-87e6-4041-b52a-285785fd720a/9b26f2b8e352e943053e6f39cf8aa29464d0b5b129726f980d6df87418a8720c.png",
-    "imageFile": "bookcase/05-trace-warm-pewter-metal-shelving-unit.png"
+    "imageFile": "bookcase/05-trace-warm-pewter-metal-shelving-unit.png",
+    "modelFile": "bookcase/05-trace-warm-pewter-metal-shelving-unit.build.js"
   },
   {
     "kind": "cabinet",
@@ -1059,7 +1127,8 @@
     "store": "quiet-joinery-bb993c14-feed-haven-hearth-02c64983",
     "handle": "signal",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bb993c14-082e-4fde-ab06-21732cc5b29e/71e21745dbcc4548cf134cf9cffc3678e23d10ed4783f81b4f988245efcd73ed.png",
-    "imageFile": "cabinet/02-signal.png"
+    "imageFile": "cabinet/02-signal.png",
+    "modelFile": "cabinet/02-signal.build.js"
   },
   {
     "kind": "cabinet",
@@ -1071,7 +1140,8 @@
     "store": "quiet-span-066c8a09",
     "handle": "built-in-media-cabinet",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/066c8a09-b777-4106-a232-e1812430e6e7/539839103e3fd666a7d5d9e732eca03e68f9b5b9edc19613e86c7622bc4a51db.png",
-    "imageFile": "cabinet/03-screen-line.png"
+    "imageFile": "cabinet/03-screen-line.png",
+    "modelFile": "cabinet/03-screen-line.build.js"
   },
   {
     "kind": "cabinet",
@@ -1083,7 +1153,8 @@
     "store": "room-routine-24a0614d-feed-rillen-berlin-e3fea2a2",
     "handle": "lowline-sideboard",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/24a0614d-eaa6-475c-adbb-25ac29b6838d/4ab4a826c435dd6535bb0985318f2e5d21f7476c393c670b11e3fdc955f6adc5.png",
-    "imageFile": "cabinet/04-lowline.png"
+    "imageFile": "cabinet/04-lowline.png",
+    "modelFile": "cabinet/04-lowline.build.js"
   },
   {
     "kind": "cabinet",
@@ -1095,7 +1166,8 @@
     "store": "the-object-register-bd6eaf64-feed-desk-to-drinks-605d453a",
     "handle": "glazed-arch",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/bd6eaf64-74eb-4fdd-be25-207e5852f0b8/e48d8ec0880f9f88e9ed885f0c4be51a19027607f37def5e965bf5eea310a425.png",
-    "imageFile": "cabinet/05-glazed-arch.png"
+    "imageFile": "cabinet/05-glazed-arch.png",
+    "modelFile": "cabinet/05-glazed-arch.build.js"
   },
   {
     "kind": "floor-lamp",
@@ -1120,7 +1192,8 @@
     "store": "evening-rooms-77edb3d5",
     "handle": "trestle",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/77edb3d5-3d0b-418d-82bc-301370826b86/21764165aebadb3e54e604df95e45bb125feba15cc93d820f14064be1e991c75.png",
-    "imageFile": "floor-lamp/02-trestle.png"
+    "imageFile": "floor-lamp/02-trestle.png",
+    "modelFile": "floor-lamp/02-trestle.build.js"
   },
   {
     "kind": "floor-lamp",
@@ -1132,7 +1205,8 @@
     "store": "plane-and-plinth-a3d53c13",
     "handle": "storey",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a3d53c13-f572-4d4a-8e00-2aa8fda13995/fb06d440c5c7ec646d9740a762538ab91d9517f6084fc041ec3fedfbffc6b565.png",
-    "imageFile": "floor-lamp/03-storey.png"
+    "imageFile": "floor-lamp/03-storey.png",
+    "modelFile": "floor-lamp/03-storey.build.js"
   },
   {
     "kind": "floor-lamp",
@@ -1144,7 +1218,8 @@
     "store": "plane-and-plinth-a3d53c13",
     "handle": "fulcrum",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/a3d53c13-f572-4d4a-8e00-2aa8fda13995/8a35526078b4459173a8789442a6b042d6d35b0c3699061b49c8a3269bbfa6a7.png",
-    "imageFile": "floor-lamp/04-fulcrum.png"
+    "imageFile": "floor-lamp/04-fulcrum.png",
+    "modelFile": "floor-lamp/04-fulcrum.build.js"
   },
   {
     "kind": "floor-lamp",
@@ -1156,7 +1231,8 @@
     "store": "the-inhabited-room-2c64beae",
     "handle": "luna-brushed-brass-floor-lamp-pack-8e8176ac4ec8f2aa",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/2c64beae-af44-488b-a388-8f762dc4985e/60bd8dc2cca3de7b73c68ff3558916631188170b36f22f9e5b6355e9b914a9d7.png",
-    "imageFile": "floor-lamp/05-luna-brushed-brass-floor-lamp.png"
+    "imageFile": "floor-lamp/05-luna-brushed-brass-floor-lamp.png",
+    "modelFile": "floor-lamp/05-luna-brushed-brass-floor-lamp.build.js"
   },
   {
     "kind": "rug",
@@ -1181,7 +1257,8 @@
     "store": "field-trestle-94ebe62d",
     "handle": "woven-grid",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/94ebe62d-14c3-4784-a50f-87c1c56c47ed/d61cc26314dba2dd0ada7b1cdfe8acda96cd4a0c221445dc61b1c5776dd11608.png",
-    "imageFile": "rug/02-woven-grid.png"
+    "imageFile": "rug/02-woven-grid.png",
+    "modelFile": "rug/02-woven-grid.build.js"
   },
   {
     "kind": "rug",
@@ -1193,7 +1270,8 @@
     "store": "gathered-shapes-b8207485",
     "handle": "winding-path",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/b8207485-16a8-4ecb-bad3-4d7cf9a43f5a/d61ad34872e910fd9fe774a1f5be0615dc3d0ebd70f6f670c487283fc158734f.png",
-    "imageFile": "rug/03-winding-path.png"
+    "imageFile": "rug/03-winding-path.png",
+    "modelFile": "rug/03-winding-path.build.js"
   },
   {
     "kind": "rug",
@@ -1205,7 +1283,8 @@
     "store": "moroccan-home-and-hammam-396e8447",
     "handle": "stepped-field",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/396e8447-e79f-48d3-be0c-be0a70592e12/b487aa3eee85a28237ad5ad587af4784b486613da5650856e29af3bc27f10d37.png",
-    "imageFile": "rug/04-stepped-field.png"
+    "imageFile": "rug/04-stepped-field.png",
+    "modelFile": "rug/04-stepped-field.build.js"
   },
   {
     "kind": "rug",
@@ -1217,6 +1296,7 @@
     "store": "resting-grove-731a0f4f",
     "handle": "moss-island",
     "imageUrl": "https://cdn.shopify.com/mock-shop-production-media/_image_studio/731a0f4f-e04b-471f-85d4-c0e01f8b2717/00156a0f5f3dc912d18824884349a5cad0a00fea55f15f3e3c79f4571345b9b0.png",
-    "imageFile": "rug/05-moss-island.png"
+    "imageFile": "rug/05-moss-island.png",
+    "modelFile": "rug/05-moss-island.build.js"
   }
 ]
