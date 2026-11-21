@@ -1,4 +1,4 @@
-// Studio header: page title, voice/mock status, and the room-level actions (New room, Render).
+// Studio header: page title, voice/mock status, and the room-level actions (New room, Check out, Render).
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -14,8 +14,10 @@ import { Badge } from "@gemini-hack/ui/components/badge";
 import { Button } from "@gemini-hack/ui/components/button";
 import { Spinner } from "@gemini-hack/ui/components/spinner";
 import { cn } from "@gemini-hack/ui/lib/utils";
-import { Camera } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Camera, ShoppingBag } from "lucide-react";
 import type { ChipState } from "../App";
+import { demoItemCount, demoTotal, fmtUsd } from "../catalog/demoCart";
 import { Hint } from "./parts";
 
 type Props = {
@@ -74,6 +76,22 @@ export function Header({
 					</Badge>
 				)}
 				<NewRoom onConfirm={onNewRoom} />
+				<Hint label="Buy everything in this room, one checkout per store">
+					<Button
+						nativeButton={false}
+						render={<Link to="/checkout" />}
+						className={cn(
+							action,
+							"bg-foreground text-background hover:bg-foreground/85 pr-2",
+						)}
+					>
+						<ShoppingBag />
+						Check out
+						<span className="bg-background/15 inline-flex h-7 items-center rounded-full px-2.5 text-xs font-semibold">
+							{demoItemCount} items · {fmtUsd(demoTotal)}
+						</span>
+					</Button>
+				</Hint>
 				<Hint label="Photoreal render of the current view (or say “render it”)">
 					<Button className={action} onClick={onRender}>
 						{rendering ? <Spinner /> : <Camera />}
