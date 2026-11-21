@@ -13,7 +13,7 @@ import {
 } from "@gemini-hack/ui/components/collapsible";
 import { Spinner } from "@gemini-hack/ui/components/spinner";
 import { cn } from "@gemini-hack/ui/lib/utils";
-import { ChevronRight, House } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import {
 	type ReactNode,
 	useEffect,
@@ -23,21 +23,20 @@ import {
 } from "react";
 import {
 	DESIGNER_HINT_MS,
-	type ShopGroup,
 	type StudioState,
 	type Task,
 	type TaskManager,
 } from "../lib/taskManager";
-import type { Product } from "../types";
+import { CartPanel } from "./CartPanel";
 import { Dot } from "./parts";
 import { fmtMs } from "./Timeline";
 
-const panel = "min-h-0 gap-0 rounded-xl py-0 ring-border";
-const scroller =
+export const panel = "min-h-0 gap-0 rounded-xl py-0 ring-border";
+export const scroller =
 	"min-h-0 flex-1 overflow-y-auto [scrollbar-color:rgb(255_255_255/0.08)_transparent] [scrollbar-width:thin]";
-const empty = "text-[12.5px] text-faint";
+export const empty = "text-[12.5px] text-faint";
 
-function PanelHead({
+export function PanelHead({
 	title,
 	meta,
 	className,
@@ -76,7 +75,6 @@ export function Sidebar({
 	const [opsOpen, setOpsOpen] = useState(
 		() => typeof window === "undefined" || window.innerHeight >= 860,
 	);
-	const productCount = state.shop.reduce((n, g) => n + g.products.length, 0);
 	return (
 		<aside className="flex min-h-0 flex-col gap-2.5 p-3">
 			<Card className={cn(panel, "min-h-24 flex-[0.9_1_0]")}>
@@ -104,37 +102,7 @@ export function Sidebar({
 				<TaskList tasks={state.tasks} manager={manager} />
 			</Card>
 
-			{state.shop.length > 0 && (
-				<Card
-					className={cn(
-						panel,
-						productCount ? "min-h-37 flex-[1_1_0]" : "flex-none",
-					)}
-				>
-					<PanelHead
-						title={
-							<>
-								<Dot agent="source" className="size-[7px]" /> Shop the look
-							</>
-						}
-						meta={productCount || ""}
-					/>
-					<div
-						className={cn(
-							scroller,
-							"flex flex-col gap-3 px-2.5 pt-2 pb-2.5",
-							!productCount && "max-h-30",
-						)}
-					>
-						{state.shop
-							.slice()
-							.reverse()
-							.map((g) => (
-								<ShopGroupView key={g.objectId} g={g} manager={manager} />
-							))}
-					</div>
-				</Card>
-			)}
+			<CartPanel manager={manager} />
 
 			<Collapsible
 				open={opsOpen}
@@ -584,130 +552,4 @@ function OpsLog({ state }: { state: StudioState }) {
 function clock(at: number) {
 	const d = new Date(at);
 	return `${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
-}
-
-// ---------- Shop the look ----------
-// Everything in a Product is untrusted text from the web: rendered as text only, links limited to http(s).
-function safeHttp(u: unknown): string | null {
-	if (typeof u !== "string" || !u.trim()) return null;
-	try {
-		const url = new URL(u.trim());
-		return url.protocol === "http:" || url.protocol === "https:"
-			? url.href
-			: null;
-	} catch {
-		return null;
-	}
-}
-
-function ShopGroupView({ g, manager }: { g: ShopGroup; manager: TaskManager }) {
-	const status = "min-w-0 flex-auto truncate text-[11px] text-muted-foreground";
-	return (
-		<div>
-			<div className="mb-1.5 flex min-w-0 items-center gap-2">
-				<span className="text-foreground max-w-[55%] flex-none truncate text-[12.5px] font-semibold">
-					{g.name}
-				</span>
-				{g.status === "running" && (
-					<span className={cn(status, "flex items-center gap-1.5")}>
-						<Spinner className="size-3" />
-						{g.statusLine}
-					</span>
-				)}
-				{g.status === "failed" && (
-					<span className={cn(status, "text-bad")}>
-						no products · {g.statusLine}
-					</span>
-				)}
-				{g.status === "cancelled" && <span className={status}>cancelled</span>}
-				{g.status === "done" && g.model && (
-					<span className={status}>{g.model}</span>
-				)}
-				{g.status === "running" && (
-					<Button
-						variant="outline"
-						size="xs"
-						className="text-muted-foreground hover:text-foreground h-5 rounded-md bg-transparent text-[11px]"
-						onClick={() => manager.cancel(g.taskId)}
-					>
-						Cancel
-					</Button>
-				)}
-			</div>
-			{g.products.length > 0 && (
-				<div className="grid grid-cols-1 gap-1.5">
-					{g.products.map((p, i) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: products have no id and the list never reorders
-						<ProductCard key={i} p={p} />
-					))}
-				</div>
-			)}
-		</div>
-	);
-}
-
-function ProductCard({ p }: { p: Product }) {
-	const href = safeHttp(p.url);
-	const img = safeHttp(p.image_url);
-	const [stage, setStage] = useState<0 | 1 | 2>(img ? 0 : 2); // 0 proxy, 1 direct, 2 placeholder
-	const src = img
-		? stage === 0
-			? `/api/img?u=${encodeURIComponent(img)}`
-			: stage === 1
-				? img
-				: null
-		: null;
-	const title = String(p.title ?? "").slice(0, 200);
-	const cls =
-		"grid grid-cols-[52px_minmax(0,1fr)] grid-rows-[auto_auto] items-center gap-x-2.5 gap-y-0.5 rounded-[9px] border border-border bg-muted py-1.5 pr-2 pl-1.5 [@media(max-height:860px)]:grid-cols-[44px_minmax(0,1fr)]";
-	const body = (
-		<>
-			<span className="row-span-2 block size-13 overflow-hidden rounded-md bg-[#f2f1ee] [@media(max-height:860px)]:size-11">
-				{src ? (
-					// biome-ignore lint/a11y/noNoninteractiveElementInteractions: onError is the image fallback chain, not an interaction
-					<img
-						src={src}
-						alt=""
-						loading="lazy"
-						referrerPolicy="no-referrer"
-						className="block size-full object-contain"
-						onError={() => setStage((s) => (s === 0 ? 1 : 2))}
-					/>
-				) : (
-					<span
-						className="text-faint grid size-full place-items-center bg-[#22252c]"
-						aria-hidden
-					>
-						<House className="size-5" />
-					</span>
-				)}
-			</span>
-			<span
-				className="text-foreground line-clamp-2 self-end text-[11px] leading-tight"
-				title={title}
-			>
-				{title || "Product"}
-			</span>
-			<span className="flex min-w-0 items-baseline gap-2 self-start text-[10.5px]">
-				<b className="max-w-1/2 flex-none truncate font-semibold text-[#e2c597]">
-					{String(p.price ?? "").slice(0, 40)}
-				</b>
-				<span className="text-muted-foreground truncate">
-					{String(p.store ?? "").slice(0, 60)}
-				</span>
-			</span>
-		</>
-	);
-	return href ? (
-		<a
-			className={cn(cls, "hover:border-source/60 hover:bg-[#1c1e24]")}
-			href={href}
-			target="_blank"
-			rel="noopener noreferrer"
-		>
-			{body}
-		</a>
-	) : (
-		<div className={cls}>{body}</div>
-	);
 }

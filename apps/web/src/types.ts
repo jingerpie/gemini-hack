@@ -267,6 +267,7 @@ export type CheckoutRequest = {
 		url?: string;
 		catalogId?: string;
 		title?: string;
+		store?: string; // merchant display name from the listing, echoed back as `checkouts[].store`
 		quantity?: number;
 	}[];
 };
@@ -276,11 +277,30 @@ export type CheckoutResponse = {
 		url: string /* continue_url, opened unchanged */;
 		titles: string[];
 		total?: string;
+		totals?: { label: string; amount: string }[]; // subtotal, shipping, tax, total: shown with Shop's own labels
+		links?: { label: string; url: string }[]; // merchant terms / privacy links: must be shown, opened unchanged
 		similar?: boolean;
 		status?: string;
 		warnings?: string[];
 	}[];
 	failed?: { title: string; reason: string }[];
+	ms: number;
+};
+
+// POST /api/shop/match -> ONE buyable Shop listing per room object (live Shop MCP search, no model call).
+// The cart panel lists exactly these, and checkout buys exactly these (`product.variant_id` + `product.shop`).
+// For a catalog object the listing is the closest real product (`product.similar` set); `product: null` = nothing found.
+export type ShopMatchRequest = {
+	items: {
+		objectId: string;
+		name: string;
+		description?: string;
+		catalogId?: string;
+		color?: string; // "#rrggbb" of the object, a hint only
+	}[];
+};
+export type ShopMatchResponse = {
+	matches: { objectId: string; product: Product | null; reason?: string }[];
 	ms: number;
 };
 

@@ -257,6 +257,9 @@ export class TaskManager {
 	private unsubEngine: (() => void) | null = null;
 	private emitQueued = false;
 	private shopEnabled = URL_PARAMS.get("shop") !== "0";
+	// The slow "Shop the look" web search is off unless ?source=1 (the cart's /api/shop/match replaces it).
+	private sourceEnabled = URL_PARAMS.get("source") === "1";
+	private sceneListeners = new Set<(scene: Scene | null) => void>();
 	private shop: ShopGroup[] = [];
 	private shopSeen = new Set<string>(); // objectIds whose group has seen its object in the scene
 	private initialScene: Scene | null = null;
@@ -297,9 +300,33 @@ export class TaskManager {
 				this.countScene(s);
 				this.pruneShop(s);
 				this.emit();
+				this.emitScene(s);
 			});
 		}
 		this.emit();
+		this.emitScene(engine ? engine.getScene() : null);
+	}
+
+	/** The live scene (a deep copy), or null before the engine is attached. */
+	getScene(): Scene | null {
+		return this.engine ? this.engine.getScene() : null;
+	}
+
+	/** Called on every scene change, and when an engine is attached / detached (null = no engine). */
+	subscribeScene(fn: (scene: Scene | null) => void): () => void {
+		this.sceneListeners.add(fn);
+		return () => {
+			this.sceneListeners.delete(fn);
+		};
+	}
+
+	/** The server client (set late in mock modes). */
+	getApi(): Api | null {
+		return this.api;
+	}
+
+	private emitScene(s: Scene | null) {
+		for (const fn of [...this.sceneListeners]) this.safe(() => fn(s));
 	}
 
 	private countScene(s: Scene) {
@@ -919,6 +946,7 @@ export class TaskManager {
 			!job.catalogId &&
 			!hasCatalogProduct(job.objectId, ops, this.engine) &&
 			this.shopEnabled &&
+			this.sourceEnabled &&
 			this.api?.source &&
 			ops.some((op) => op.op === "add" && op.id === job.objectId) &&
 			!this.shop.some((g) => g.objectId === job.objectId)

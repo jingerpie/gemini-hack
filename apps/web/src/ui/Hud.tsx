@@ -57,8 +57,6 @@ export function Hud({
 	verifyEnabled,
 	onVerify,
 	onUndo,
-	shopEnabled,
-	onShop,
 	onNewRoom,
 	onRender,
 	rendering,
@@ -110,20 +108,6 @@ export function Hud({
 							className="data-checked:bg-ok"
 						/>
 						Verify
-					</Label>
-				</Hint>
-				<Hint label="For each new custom object, a sourcing agent finds 3 real products you can buy">
-					<Label
-						htmlFor="shop-switch"
-						className={cn(pill, "cursor-pointer gap-2 text-xs")}
-					>
-						<Switch
-							id="shop-switch"
-							checked={shopEnabled}
-							onCheckedChange={(on) => onShop(on)}
-							className="data-checked:bg-source"
-						/>
-						Shop the look
 					</Label>
 				</Hint>
 				<Hint label="Photoreal render of the current view (or say “render it”)">
