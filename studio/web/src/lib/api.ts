@@ -3,6 +3,11 @@
 import type {
   AssetEvent,
   AssetRequest,
+  CheckoutRequest,
+  CheckoutResponse,
+  ChooseRequest,
+  ChooseResponse,
+  OptionsResponse,
   DecalRequest,
   DecalResponse,
   PatchRequest,
@@ -25,6 +30,20 @@ export interface Api {
   source?(req: SourceRequest, signal: AbortSignal, onEvent: (e: SourceEvent) => void): Promise<void>;
   /** Photoreal render of a canvas screenshot. Optional (mocks may lack it). */
   render?(req: RenderRequest, signal: AbortSignal): Promise<RenderResponse>;
+  /** Next page of option cards (live search). A missing route throws NotAvailableError. */
+  options?(q: string, page: number, objectId: string, signal?: AbortSignal): Promise<OptionsResponse>;
+  /** Ops + jobs that put the chosen product on the object (no model call). */
+  choose?(req: ChooseRequest, signal?: AbortSignal): Promise<ChooseResponse>;
+  /** Real checkout links, one per merchant. */
+  checkout?(req: CheckoutRequest, signal?: AbortSignal): Promise<CheckoutResponse>;
+}
+
+/** The server does not have this route (404/405): the feature hides itself quietly. */
+export class NotAvailableError extends Error {
+  constructor(path: string) {
+    super(`${path} not available`);
+    this.name = "NotAvailableError";
+  }
 }
 
 const PARAMS = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
@@ -100,6 +119,7 @@ async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): P
     signal,
   });
   if (!res.ok) {
+    if (res.status === 404 || res.status === 405) throw new NotAvailableError(path);
     let detail = "";
     try {
       detail = (await res.text()).slice(0, 300);
@@ -107,6 +127,21 @@ async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): P
       /* ignore */
     }
     throw new Error(`${path} ${res.status}${detail ? `: ${detail}` : ""}`);
+  }
+  return (await res.json()) as T;
+}
+
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(path, { signal });
+  if (!res.ok) {
+    if (res.status === 404 || res.status === 405) throw new NotAvailableError(path.split("?")[0]);
+    let detail = "";
+    try {
+      detail = (await res.text()).slice(0, 300);
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`${path.split("?")[0]} ${res.status}${detail ? `: ${detail}` : ""}`);
   }
   return (await res.json()) as T;
 }
@@ -167,6 +202,10 @@ export const httpApi: Api = {
   source: (req, signal, onEvent) => postSse<SourceEvent>(`/api/source${VIA ? `?via=${VIA}` : ""}`, req, signal, onEvent),
   decal: (req, signal) => postJson<DecalResponse>("/api/decal", req, signal),
   verify: (req, signal) => postJson<VerifyResponse>("/api/verify", req, signal),
+  options: (q, page, objectId, signal) =>
+    getJson<OptionsResponse>(`/api/options?q=${encodeURIComponent(q)}&page=${page}&objectId=${encodeURIComponent(objectId)}`, signal),
+  choose: (req, signal) => postJson<ChooseResponse>("/api/choose", req, signal),
+  checkout: (req, signal) => postJson<CheckoutResponse>("/api/checkout", req, signal),
   async render(req, signal) {
     const t = withTimeout(signal, RENDER_TIMEOUT_MS);
     try {

@@ -18,6 +18,7 @@ import { applyOpsToScene, clamp, cloneScene, normalizeScene, SURFACE_IDS, WALL_I
 import { computeFit, disposeObject, evaluateModelCode, modelTargets, type MatState, type PreparedModel, type StdMat } from "./model";
 import { makeDecalPlaceholderTexture, makeFloorTexture, makeLabel } from "./textures";
 import { keyOutBackground, type KeyedPixels } from "./decalAlpha";
+import { createGlbLoaders, disposeGlbInstance, disposeGlbTemplate, instantiateGlb, loadGlbTemplate, type GlbLoaders, type GlbTemplate } from "./glb";
 
 export { DEFAULT_SCENE };
 
@@ -39,6 +40,10 @@ export type StudioEngine = Engine & {
   applyOpsStaggered(ops: Op[], gapMs: number): Promise<void>;
   /** With maxSide: downscaled JPEG (quality default 0.7). Without args: unchanged full-size JPEG at 0.88. */
   screenshot(opts?: { maxSide?: number; quality?: number }): string;
+  /** Load the merchant GLB for a custom object (cached by url). Keeps its real size when plausible (written back). */
+  setAssetGlb(objectId: string, url: string): Promise<{ ok: boolean; error?: string; size?: Vec3 }>;
+  /** GLB download progress per object (bytes; total 0 = unknown). */
+  onAssetProgress(fn: (objectId: string, loaded: number, total: number) => void): () => void;
 };
 
 export type HoverInfo = { id: string; name: string; kind: "object" | "decal" | "surface" };
@@ -137,7 +142,7 @@ function writeMat(m: StdMat, s: MatState, baseTransparent = false) {
   }
   m.depthWrite = baseTransparent ? m.depthWrite : !tr;
   const phys = m as THREE.MeshPhysicalMaterial;
-  if (phys.isMeshPhysicalMaterial) {
+  if (phys.isMeshPhysicalMaterial && !phys.userData.glb) {
     // Glossy finishes get a lacquer clearcoat so "shiny" reads strongly. Dark glossy DIELECTRICS (black lacquer) are
     // tamed: a dielectric reflects ~4% head-on, and its grazing Fresnel must not turn a black wall into a mirror of
     // the oak floor, so the clearcoat, the base specular (F0 and F90) and the specular env strength drop with
@@ -254,7 +259,7 @@ function primGeometry(shape: Shape, size: Vec3): THREE.BufferGeometry {
 // ---------------------------------------------------------------------------------------------------------------
 // view records
 
-type CodeEntry = { code: string; baseColor: string | null };
+type CodeEntry = { code: string; baseColor: string | null; glbUrl?: string }; // glb entries: code = "glb:" + url
 type Fx = {
   group: THREE.Group;
   fill?: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
@@ -267,7 +272,7 @@ type Fx = {
   key: string;
   t0: number;
 };
-type ModelView = { prepared: PreparedModel; wrap: THREE.Group; code: string; baseColor: string | null };
+type ModelView = { prepared: PreparedModel; wrap: THREE.Group; code: string; baseColor: string | null; glbUrl?: string };
 type Mode = "prim" | "solid" | "ghost" | "model";
 type ObjView = {
   id: string;
@@ -322,6 +327,14 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   const latestImage = new Map<string, string>();
   const textureCache = new Map<string, Promise<THREE.Texture>>();
   let pendingPrepared: { code: string; model: PreparedModel } | null = null;
+  // merchant GLBs: templates cached by url (survive undo/redo), per-url failures, per-object base colour at arrival
+  const glbLoads = new Map<string, Promise<GlbTemplate>>();
+  const glbReady = new Map<string, GlbTemplate>();
+  const glbFailed = new Map<string, string>();
+  const glbProgress = new Map<string, { loaded: number; total: number; at: number }>();
+  const glbBase = new Map<string, string>(); // cacheKey(objectId, url) -> object colour when the model arrived
+  const progressListeners = new Set<(objectId: string, loaded: number, total: number) => void>();
+  let glbLoaders: GlbLoaders | null = null;
 
   // ---------------- renderer / scene / camera
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -529,9 +542,13 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
 
   function want(o: SceneObject, v?: ObjView): Want {
     if (o.shape !== "custom") return { mode: "prim" };
+    if (o.glb && glbReady.has(o.glb)) {
+      const base = glbBase.get(cacheKey(o.id, o.glb)) ?? null;
+      return { mode: "model", entry: { code: "glb:" + o.glb, baseColor: base, glbUrl: o.glb }, rebuilding: false };
+    }
     const entry = codeFor(o);
     if (entry) return { mode: "model", entry, rebuilding: false };
-    if (v?.model) return { mode: "model", entry: { code: v.model.code, baseColor: v.model.baseColor }, rebuilding: o.status === "building" };
+    if (v?.model) return { mode: "model", entry: { code: v.model.code, baseColor: v.model.baseColor, glbUrl: v.model.glbUrl }, rebuilding: o.status === "building" };
     return { mode: o.status === "building" ? "ghost" : "solid" };
   }
 
@@ -548,7 +565,8 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     }
     if (v.model) {
       v.body.remove(v.model.wrap);
-      disposeObject(v.model.wrap);
+      if (v.model.glbUrl) disposeGlbInstance(v.model.wrap); // geometry + textures belong to the cached template
+      else disposeObject(v.model.wrap);
       v.model = undefined;
     }
   }
@@ -558,7 +576,10 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     let mode: Mode = w.mode;
     if (w.mode === "model") {
       let prepared: PreparedModel | null = null;
-      if (pendingPrepared && pendingPrepared.code === w.entry.code) {
+      const tpl = w.entry.glbUrl ? glbReady.get(w.entry.glbUrl) : undefined;
+      if (w.entry.glbUrl) {
+        if (tpl) prepared = instantiateGlb(tpl);
+      } else if (pendingPrepared && pendingPrepared.code === w.entry.code) {
         prepared = pendingPrepared.model;
         pendingPrepared = null;
       } else {
@@ -574,7 +595,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
         wrap.scale.copy(fit.scale);
         wrap.position.copy(fit.offset);
         v.body.add(wrap);
-        v.model = { prepared, wrap, code: w.entry.code, baseColor: w.entry.baseColor };
+        v.model = { prepared, wrap, code: w.entry.code, baseColor: w.entry.baseColor, glbUrl: w.entry.glbUrl };
         const targets = modelTargets(prepared.records, o, w.entry.baseColor);
         prepared.records.forEach((r, i) => writeMat(r.mat, targets[i], r.transparent));
       } else mode = "solid";
@@ -607,7 +628,10 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
 
   function syncFx(v: ObjView, o: SceneObject, w: Want) {
     const kind = fxKind(v, w);
-    const k = kind ? `${kind}|${o.size.x}|${o.size.y}|${o.size.z}|${o.name}` : "";
+    const prog = o.glb && !glbReady.has(o.glb) ? glbProgress.get(o.glb) : undefined;
+    const mb = (n: number) => (n / 1048576).toFixed(1);
+    const progText = prog ? (prog.total ? `Loading model ${mb(prog.loaded)} of ${mb(prog.total)} MB` : `Loading model ${mb(prog.loaded)} MB`) : "";
+    const k = kind ? `${kind}|${o.size.x}|${o.size.y}|${o.size.z}|${o.name}|${progText}` : "";
     if (v.fx && v.fx.key === k) return;
     const t0 = v.fx?.t0 ?? performance.now();
     removeFx(v);
@@ -641,7 +665,7 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     const scan = new THREE.Group();
     scan.add(scanFill, scanLine);
     scan.renderOrder = 3;
-    const label = makeLabel((kind === "fill" ? "Building " : "Rebuilding ") + o.name + "…");
+    const label = makeLabel(progText ? `${o.name}: ${progText}` : (kind === "fill" ? "Building " : "Rebuilding ") + o.name + "…");
     label.position.y = s.y + 0.1;
     group.add(edges, scan, label);
     setLayer(group, FX_LAYER);
@@ -1007,7 +1031,131 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
   }
 
   // ---------------- reconcile / notify
+  // A GLB has arrived for o (first time for this object state): status ready, real size written back, base re-seated
+  // on its support, kept flush against a wall it stood against, things resting on it moved with its new top.
+  function settleGlb(s: Scene, o: SceneObject, t: GlbTemplate) {
+    if (o.status === "ready") return; // restored "ready" state (undo/redo/load) keeps its size, incl. user resizes
+    o.status = "ready";
+    if (!glbBase.has(cacheKey(o.id, t.url))) glbBase.set(cacheKey(o.id, t.url), o.color);
+    const m = t.size;
+    const plausible = [m.x, m.y, m.z].every((v) => v >= 0.03 && v <= 4.5);
+    let k = 1;
+    if (!plausible) {
+      k = Infinity;
+      for (const a of ["x", "y", "z"] as const) if (m[a] > 1e-6) k = Math.min(k, o.size[a] / m[a]);
+      if (!Number.isFinite(k) || k <= 0) k = 1;
+    }
+    const r3 = (n: number) => Math.max(0.01, Math.round(n * 1000) / 1000);
+    const ns: Vec3 = { x: r3(m.x * k), y: r3(m.y * k), z: r3(m.z * k) };
+    const { width: W, depth: D } = s.room;
+    const th = o.rotation_y_deg * DEG, c = Math.abs(Math.cos(th)), sn = Math.abs(Math.sin(th));
+    const ext = (z: Vec3) => ({ ex: (c * z.x + sn * z.z) / 2, ez: (sn * z.x + c * z.z) / 2 });
+    const e0 = ext(o.size), e1 = ext(ns);
+    const NEAR = 0.15;
+    const atBack = o.position.z - e0.ez <= -D / 2 + NEAR;
+    const atLeft = o.position.x - e0.ex <= -W / 2 + NEAR;
+    const atRight = o.position.x + e0.ex >= W / 2 - NEAR;
+    o.size = ns;
+    if (atBack) o.position.z = -D / 2 + e1.ez + 0.004;
+    if (atLeft) o.position.x = -W / 2 + e1.ex + 0.004;
+    else if (atRight) o.position.x = W / 2 - e1.ex - 0.004;
+    if (W > 2 * e1.ex) o.position.x = clamp(o.position.x, -W / 2 + e1.ex, W / 2 - e1.ex);
+    o.position.z = Math.max(o.position.z, -D / 2 + e1.ez);
+    const par = o.parent ? s.objects.find((p) => p.id === o.parent && p.id !== o.id) : undefined;
+    if (par) o.position.y = par.position.y + par.size.y;
+    // whatever rests on it follows its new top
+    const seen = new Set<string>([o.id]);
+    const shift = (id: string, dy: number) => {
+      for (const ch of s.objects) {
+        if (ch.parent !== id || seen.has(ch.id)) continue;
+        seen.add(ch.id);
+        ch.position.y += dy;
+        shift(ch.id, dy);
+      }
+    };
+    for (const ch of s.objects) {
+      if (ch.parent !== o.id || seen.has(ch.id)) continue;
+      const dy = o.position.y + o.size.y - ch.position.y;
+      seen.add(ch.id);
+      if (Math.abs(dy) > 1e-4) {
+        ch.position.y += dy;
+        shift(ch.id, dy);
+      }
+    }
+  }
+
+  function emitProgress(url: string, loaded: number, total: number) {
+    const now = performance.now();
+    const prev = glbProgress.get(url);
+    const final = total > 0 && loaded >= total;
+    if (prev && !final && now - prev.at < 250) return; // ~4 updates/s
+    glbProgress.set(url, { loaded, total, at: now });
+    for (const o of scene.objects) {
+      if (o.glb !== url) continue;
+      for (const fn of [...progressListeners]) {
+        try {
+          fn(o.id, loaded, total);
+        } catch (e) {
+          console.warn("[engine] progress listener threw", e);
+        }
+      }
+      const v = views.get(o.id);
+      if (v) syncFx(v, o, want(o, v)); // label shows the progress
+    }
+  }
+
+  function ensureGlb(url: string, retry = false): Promise<GlbTemplate> {
+    const cur = glbLoads.get(url);
+    if (cur) return cur;
+    const failed = glbFailed.get(url);
+    if (failed && !retry) return Promise.reject(new Error(failed));
+    glbFailed.delete(url);
+    glbLoaders ??= createGlbLoaders(renderer);
+    const p = loadGlbTemplate(glbLoaders, url, (l, t) => {
+      if (!disposed) emitProgress(url, l, t);
+    });
+    glbLoads.set(url, p);
+    p.then(
+      (t) => {
+        glbProgress.delete(url);
+        if (disposed) return disposeGlbTemplate(t);
+        glbReady.set(url, t);
+        console.info(`[engine] glb ${t.meshCount} meshes, ${(t.bytes / 1048576).toFixed(1)} MB, ${t.ms} ms, size ${t.size.x.toFixed(2)} x ${t.size.y.toFixed(2)} x ${t.size.z.toFixed(2)}: ${url}`);
+        let hit = false;
+        for (const o of scene.objects) {
+          if (o.shape !== "custom" || o.glb !== url) continue;
+          settleGlb(scene, o, t);
+          hit = true;
+        }
+        if (hit) {
+          reconcile(true);
+          notify();
+        }
+      },
+      (e) => {
+        glbLoads.delete(url);
+        glbProgress.delete(url);
+        const msg = (e as Error)?.message ?? String(e);
+        glbFailed.set(url, msg);
+        console.warn("[engine] glb failed:", msg, url);
+        // drop the progress label
+        for (const o of scene.objects) {
+          if (o.glb !== url) continue;
+          const v = views.get(o.id);
+          if (v) syncFx(v, o, want(o, v));
+        }
+      },
+    );
+    return p;
+  }
+
   function normalizeStatuses(s: Scene) {
+    for (const o of s.objects) {
+      if (o.shape === "custom" && o.glb) {
+        const t = glbReady.get(o.glb);
+        if (t) settleGlb(s, o, t);
+      }
+    }
     for (const o of s.objects) {
       if (o.shape === "custom" && codeByKey.has(cacheKey(o.id, o.description))) o.status = "ready";
     }
@@ -1025,6 +1173,11 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
     syncSurfaces(animate);
     syncObjects(animate);
     syncDecals(animate);
+    for (const o of scene.objects) {
+      if (o.shape === "custom" && o.glb && !glbReady.has(o.glb) && !glbLoads.has(o.glb) && !glbFailed.has(o.glb)) {
+        ensureGlb(o.glb).catch(() => {}); // the failure is reported to setAssetGlb callers / kept in glbFailed
+      }
+    }
   }
 
   function notify() {
@@ -1519,6 +1672,42 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
       return out;
     },
 
+    async setAssetGlb(objectId: string, url: string) {
+      if (disposed) return { ok: false, error: "engine disposed" };
+      if (typeof url !== "string" || !/^(https?:|blob:|\/)/i.test(url.trim())) return { ok: false, error: "bad glb url" };
+      url = url.trim();
+      const o = scene.objects.find((x) => x.id === objectId);
+      if (o && o.shape !== "custom") return { ok: false, error: "not a custom object" };
+      if (o && o.glb !== url) {
+        o.glb = url; // in place: no undo step (like setAssetCode)
+        notify();
+      }
+      let t: GlbTemplate;
+      try {
+        t = await ensureGlb(url, true);
+      } catch (e) {
+        return { ok: false, error: (e as Error)?.message ?? String(e) };
+      }
+      if (disposed) return { ok: false, error: "engine disposed" };
+      const cur = scene.objects.find((x) => x.id === objectId);
+      if (cur && cur.glb === url) {
+        if (cur.status !== "ready") {
+          settleGlb(scene, cur, t);
+          reconcile(true);
+          notify();
+        }
+        return { ok: true, size: { ...cur.size } };
+      }
+      return { ok: true, size: { x: t.size.x, y: t.size.y, z: t.size.z } };
+    },
+
+    onAssetProgress(fn) {
+      progressListeners.add(fn);
+      return () => {
+        progressListeners.delete(fn);
+      };
+    },
+
     onHover(fn) {
       hoverListeners.add(fn);
       return () => {
@@ -1619,6 +1808,10 @@ export function createEngine(container: HTMLElement, initialScene: Scene = DEFAU
       cubeRT.dispose();
       capturedRT?.dispose();
       pmrem.dispose();
+      for (const t of glbReady.values()) disposeGlbTemplate(t);
+      glbReady.clear();
+      glbLoaders?.dispose();
+      progressListeners.clear();
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();
