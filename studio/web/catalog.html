@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Model Catalog</title>
+  </head>
+  <body>
+    <header class="top">
+      <div class="title">
+        <h1>Model catalog</h1>
+        <span id="count" class="count"></span>
+      </div>
+      <nav id="kinds" class="kinds"></nav>
+    </header>
+    <main id="grid" class="grid"></main>
+
+    <dialog id="viewer" class="viewer">
+      <div class="viewer-body">
+        <div id="stage" class="stage"></div>
+        <aside class="info">
+          <button id="close" class="close" aria-label="Close">×</button>
+          <img id="photo" class="photo" alt="" />
+          <h2 id="v-name"></h2>
+          <dl id="v-meta" class="meta"></dl>
+          <div class="nav-row">
+            <button id="prev">← Prev</button>
+            <button id="next">Next →</button>
+          </div>
+          <details class="code">
+            <summary>Model code</summary>
+            <pre id="v-code"></pre>
+          </details>
+        </aside>
+      </div>
+    </dialog>
+    <script type="module" src="/src/catalog/main.ts"></script>
+  </body>
+</html>
