@@ -60,7 +60,7 @@ function makeRenderer(preserveDrawingBuffer: boolean) {
 
 function makeScene(env: THREE.Texture) {
 	const scene = new THREE.Scene();
-	scene.background = new THREE.Color(0x1a1c21);
+	scene.background = new THREE.Color(0xeeeef2);
 	scene.environment = env;
 	scene.environmentIntensity = 0.45;
 	const sun = new THREE.DirectionalLight(0xffffff, 1.6);
