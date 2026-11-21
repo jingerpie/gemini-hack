@@ -543,7 +543,7 @@ const KINDS = [
 ];
 // Accessories, toys and other things that share a furniture word. Ignored when the request itself uses the word.
 const ACCESSORY =
-	/\b(covers?|slip ?covers?|cushions?|pillows?|seat pads?|protectors?|replacements?|spare|legs?|leg sets?|feet|casters?|glides?|hardware|parts?|kits?|swatch(es)?|samples?|fabrics?|miniatures?|mini|doll ?house|dolls?|toys?|kids?|child(ren)?'?s?|toddlers?|baby|nursery|pets?|dogs?|cats?|puppy|rentals?|rent|incense|holders?|ornaments?|figurines?|keychains?|stickers?|decals?|posters?|prints?|canvas|paintings?|cakes?|candles?|bulbs?|cords?|throws?|blankets?|gift ?cards?|digital|downloads?|stl|templates?|blueprints?|plans|diy|patterns?|necklaces?|earrings?|pendant necklaces?|charms?|jewelry|shirts?|tees?|mugs?|books?|magnets?|models? kit|scale models?|1:\d+)\b/;
+	/\b(covers?|slip ?covers?|cushions?|pillows?|seat pads?|protectors?|replacements?|spare|legs?|leg sets?|feet|casters?|glides?|hardware|parts?|kits?|swatch(es)?|samples?|fabrics?|miniatures?|mini|doll ?house|dolls?|toys?|kids?|child(ren)?'?s?|toddlers?|baby|nursery|pets?|dogs?|cats?|puppy|rentals?|rent|incense|holders?|ornaments?|figurines?|keychains?|stickers?|decals?|posters?|prints?|canvas|paintings?|cakes?|candles?|bulbs?|cords?|throws?|blankets?|gift ?cards?|digital|downloads?|stl|templates?|blueprints?|plans|diy|patterns?|necklaces?|earrings?|pendant necklaces?|charms?|jewelry|shirts?|tees?|mugs?|books?|magnets?|models? kit|scale models?|1:\d+|racks?|towels?|hooks?|hangers?|organi[sz]ers?|trays?|bags?|mounts?)\b/;
 // Words that describe a listing rather than name it: they raise the score when the title has them.
 const DESCRIPTORS = new Set(
 	(
@@ -1036,6 +1036,74 @@ export async function shopFindCatalogItem(entry, { signal } = {}) {
 	return p ? { ...p, catalogId, similar: true } : null;
 }
 
+// ---------- match: one buyable listing per room object ----------
+
+const buyable = (p) => !!(p?.variant_id && p.shop);
+
+/** One room object -> { objectId, product: Product | null, reason? }. Never throws. */
+async function matchOne(item, { signal }) {
+	const objectId = String(item?.objectId || "");
+	const name = String(item?.name || "")
+		.trim()
+		.slice(0, 120);
+	try {
+		if (item?.catalogId) {
+			const catalogId = String(item.catalogId).replace(/\.build\.js$/, "");
+			const entry = catalogEntry(catalogId);
+			if (!entry)
+				return { objectId, product: null, reason: "not in the catalog" };
+			const p = await shopFindCatalogItem(entry, { signal });
+			if (!buyable(p))
+				return {
+					objectId,
+					product: null,
+					reason: "no live Shop product like this catalog item",
+				};
+			return { objectId, product: { ...p, catalogId, similar: true } };
+		}
+		if (!name) return { objectId, product: null, reason: "no name" };
+		// The short name ("toaster", "L-shaped desk") searches best; relevance rules drop accessories and wrong kinds.
+		const r = await shopSimilar(
+			{ name, color: String(item.color || "") },
+			{ limit: 3, signal },
+		);
+		const hit = r.products.find(buyable);
+		if (!hit)
+			return {
+				objectId,
+				product: null,
+				reason: `no buyable Shop listing for "${name}"`,
+			};
+		const { similar: _s, ...product } = hit; // a direct search hit: not marked similar
+		return { objectId, product };
+	} catch (e) {
+		return {
+			objectId,
+			product: null,
+			reason: `Shop search failed: ${e.message}`,
+		};
+	}
+}
+
+/**
+ * ShopMatchRequest["items"] -> ShopMatchResponse: one buyable Shop listing (variant_id + shop) per object, live (no cache,
+ * no model call). Items run 4 at a time; one failing item never fails the others.
+ */
+export async function shopMatch(items, { signal } = {}) {
+	const t0 = Date.now();
+	const list = Array.isArray(items) ? items.slice(0, 40) : [];
+	const matches = new Array(list.length);
+	let next = 0;
+	const worker = async () => {
+		while (next < list.length) {
+			const i = next++;
+			matches[i] = await matchOne(list[i], { signal });
+		}
+	};
+	await Promise.all(Array.from({ length: Math.min(4, list.length) }, worker));
+	return { matches, ms: Date.now() - t0 };
+}
+
 // ---------- checkout ----------
 
 /** Resolve one checkout item to { title, shop, store, variant_id, quantity, similar } or throw with a reason. */
@@ -1046,7 +1114,7 @@ async function resolveItem(item, { signal }) {
 		return {
 			title: item.title || "item",
 			shop: item.shop,
-			store: item.shop,
+			store: String(item.store || "").trim() || item.shop, // the listing's display name when the client sent it
 			variant_id: item.variantId,
 			quantity,
 			similar: false,
@@ -1128,6 +1196,14 @@ async function resolveItem(item, { signal }) {
 		{ title: "(unnamed item)" },
 	);
 }
+
+/** "terms_of_service" -> "Terms of service". */
+const humanize = (s) => {
+	const t = String(s || "")
+		.replace(/[_-]+/g, " ")
+		.trim();
+	return t ? t[0].toUpperCase() + t.slice(1) : "";
+};
 
 /** Opens one checkout at one merchant. Returns the checkout document. */
 async function createCheckout(shop, lines, { signal }) {
@@ -1219,6 +1295,27 @@ export async function shopCheckout(items, { signal } = {}) {
 						.filter((m) => m.type === "warning")
 						.map((m) => m.content),
 				};
+				// Every total line with the merchant's own label (subtotal, shipping, tax, total), amount formatted.
+				const totals = (doc.totals || [])
+					.map((t) => ({
+						label: String(
+							t.display_text || t.label || t.title || humanize(t.type),
+						),
+						amount: formatMoney({
+							amount: t.amount,
+							currency: t.currency || doc.currency,
+						}),
+					}))
+					.filter((t) => t.label && t.amount);
+				if (totals.length) c.totals = totals;
+				// Merchant legal links (terms, privacy ...): URLs exactly as returned.
+				const links = (doc.links || [])
+					.filter((l) => typeof l?.url === "string" && l.url)
+					.map((l) => ({
+						label: String(l.title || l.label || humanize(l.type) || "Link"),
+						url: l.url,
+					}));
+				if (links.length) c.links = links;
 				if (g.lines.some((l) => l.similar)) c.similar = true;
 				if (!c.total) delete c.total;
 				checkouts.push(c);
