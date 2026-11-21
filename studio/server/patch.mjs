@@ -221,6 +221,77 @@ export function buildOps(calls, scene) {
   return { ops, jobs, say: say.join(' ').trim(), dropped };
 }
 
+// ---------- designer path ----------
+// Hydrogen (fast hands) routes whole-room / style / open-ended requests to a stronger planning model via ask_designer.
+export const DESIGNER_MODEL = process.env.DESIGNER_MODEL || 'gemini-4-argon';
+export const DESIGNER_TIMEOUT_MS = 30000;
+const DESIGNER_THINKING = { 'gemini-4-argon': 'low', 'gemini-4-neon': 'low', 'gemini-4-carbon': 'low', 'gemini-4-hydrogen': 'low' }; // per-model thinking level; others use the model default
+const ASK_DESIGNER = { name: 'ask_designer',
+  description: 'Hand the request to the senior interior designer, who plans a complete coherent set of edits. Use for whole-room designs/themes, a style or mood for the room as a whole, and open-ended judgements ("this feels empty", "what would make it better?"). Call it ALONE: no other calls, no say.',
+  parameters: { type: 'object', properties: { brief: { type: 'string', description: "the user's request restated as a clear design brief, including constraints from the utterance and history (things to keep, colors, mood)" } }, required: ['brief'] } };
+const DESIGNER_TOOLS = TOOLS.map(t => t.name !== 'say' ? t : { ...t, description: 'One or two short sentences (max 40 words), spoken to the user, explaining the design idea.' });
+const DESIGNER_SYSTEM = fs.readFileSync(path.join(SERVER_DIR, 'prompts', 'designer.txt'), 'utf8')
+  .replace('{{SHARED}}', SYSTEM.slice(SYSTEM.indexOf('COORDINATES'), SYSTEM.indexOf('BEHAVIOR')).trim());
+const declare = list => [{ functionDeclarations: list.map(t => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }];
+const callsOf = js => (js.candidates?.[0]?.content?.parts || []).filter(p => p.functionCall).map(p => ({ name: p.functionCall.name, args: p.functionCall.args || {} }));
+function imagePart(image) {
+  const m = typeof image === 'string' && /^data:(image\/[\w.+-]+);base64,([\s\S]+)$/.exec(image);
+  return m ? { inlineData: { mimeType: m[1], data: m[2] } } : null;
+}
+function promptInput(scene, history, utterance) {
+  return `CURRENT SCENE:\n${JSON.stringify(compactScene(scene))}\n\nRECENT HISTORY (oldest first):\n` +
+    ((Array.isArray(history) ? history : []).slice(-6).map((h, i) => `${i + 1}. User: "${h.u}" -> Applied: ${h.applied}`).join('\n') || '(none)') +
+    `\n\nUSER SAID: "${String(utterance).trim()}"`;
+}
+
+// Fast path: one Hydrogen call. Returns raw function calls. withDesigner=false reproduces the pre-designer behavior.
+export async function orchestrate({ scene, history, utterance }, { model = PATCH_MODEL, thinkingLevel = 'low', withDesigner = true, timeoutMs = 30000 } = {}) {
+  const body = {
+    systemInstruction: { parts: [{ text: SYSTEM }] },
+    contents: [{ role: 'user', parts: [{ text: promptInput(scene, history, utterance) }] }],
+    tools: declare(withDesigner ? [...TOOLS, ASK_DESIGNER] : TOOLS),
+    toolConfig: { functionCallingConfig: { mode: 'ANY' } },
+    generationConfig: { thinkingConfig: { thinkingLevel } },
+  };
+  return callsOf(await generateContent(model, body, { timeoutMs }));
+}
+
+// Designer: one call to a planning model with the same scene tools (+ optional screenshot). Returns raw function calls.
+export async function runDesigner({ scene, history, utterance, brief, image }, { model = DESIGNER_MODEL, thinkingLevel = DESIGNER_THINKING[model], timeoutMs = DESIGNER_TIMEOUT_MS, signal } = {}) {
+  const parts = [{ text: promptInput(scene, history, utterance) + `\n\nDESIGN BRIEF: ${brief || utterance}` }];
+  const ip = imagePart(image);
+  if (ip) parts.push({ text: 'SCREENSHOT of the room as the user sees it right now:' }, ip);
+  const body = {
+    systemInstruction: { parts: [{ text: DESIGNER_SYSTEM }] },
+    contents: [{ role: 'user', parts }],
+    tools: declare(DESIGNER_TOOLS),
+    toolConfig: { functionCallingConfig: { mode: 'ANY' } },
+    ...(thinkingLevel && { generationConfig: { thinkingConfig: { thinkingLevel } } }),
+  };
+  return callsOf(await generateContent(model, body, { timeoutMs, signal }));
+}
+
+// Designer with a hedged Hydrogen fallback started at the same time (aborted when the designer succeeds).
+async function design(req, scene, designerModel) {
+  const fbCtl = new AbortController();
+  const fallback = designerModel === PATCH_MODEL ? null
+    : runDesigner(req, { model: PATCH_MODEL, thinkingLevel: 'low', timeoutMs: DESIGNER_TIMEOUT_MS, signal: fbCtl.signal }).catch(e => ({ error: e }));
+  let why;
+  try {
+    const out = buildOps(await runDesigner(req, { model: designerModel }), scene);
+    if (!out.ops.length) throw new Error('designer returned no edits');
+    fbCtl.abort(new Error('designer answered'));
+    return { ...out, model: designerModel };
+  } catch (e) { why = String(e.message || e).slice(0, 120); }
+  console.log(`designer ${designerModel} failed: ${why}`);
+  const fb = fallback ? await fallback : { error: new Error('no fallback') };
+  if (fb.error || !fb.length) return { ops: [], jobs: [], say: "Sorry, the designer couldn't finish that. Try a more specific request.", dropped: [`designer: ${why}`], model: designerModel };
+  const out = buildOps(fb, scene);
+  out.say = `The designer didn't answer in time, so here's my quick take. ${out.say}`.trim();
+  out.dropped = [`designer: ${why}`, ...out.dropped];
+  return { ...out, model: PATCH_MODEL };
+}
+
 // Compact scene for the prompt: only what the model needs, no code / image data.
 function compactScene(scene) {
   const room = normRoom(scene);
@@ -236,21 +307,17 @@ function compactScene(scene) {
   };
 }
 
-export async function patch({ scene, history = [], utterance }) {
+export async function patch({ scene, history = [], utterance, image }, { designer } = {}) {
   if (typeof utterance !== 'string' || !utterance.trim()) { const e = new Error('utterance required'); e.status = 400; throw e; }
-  const input = `CURRENT SCENE:\n${JSON.stringify(compactScene(scene))}\n\nRECENT HISTORY (oldest first):\n` +
-    ((Array.isArray(history) ? history : []).slice(-6).map((h, i) => `${i + 1}. User: "${h.u}" -> Applied: ${h.applied}`).join('\n') || '(none)') +
-    `\n\nUSER SAID: "${utterance.trim()}"`;
-  const body = {
-    systemInstruction: { parts: [{ text: SYSTEM }] },
-    contents: [{ role: 'user', parts: [{ text: input }] }],
-    tools: [{ functionDeclarations: TOOLS.map(t => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }],
-    toolConfig: { functionCallingConfig: { mode: 'ANY' } },
-    generationConfig: { thinkingConfig: { thinkingLevel: 'low' } },
-  };
+  const designerModel = /^gemini-[\w.-]+$/.test(designer || '') ? designer : DESIGNER_MODEL;
   const t0 = Date.now();
-  const js = await generateContent(PATCH_MODEL, body, { timeoutMs: 30000 });
-  const calls = (js.candidates?.[0]?.content?.parts || []).filter(p => p.functionCall).map(p => ({ name: p.functionCall.name, args: p.functionCall.args || {} }));
+  const calls = await orchestrate({ scene, history, utterance });
+  const ask = calls.find(c => c.name === 'ask_designer');
+  if (ask) {
+    const brief = String(ask.args.brief || utterance);
+    const out = await design({ scene, history, utterance, brief, image }, scene, designerModel);
+    return { ops: out.ops, jobs: out.jobs, say: out.say, ms: Date.now() - t0, model: out.model, brief, _dropped: out.dropped };
+  }
   const out = buildOps(calls, scene);
   return { ops: out.ops, jobs: out.jobs, say: out.say, ms: Date.now() - t0, model: PATCH_MODEL, _dropped: out.dropped };
 }
