@@ -75,6 +75,7 @@ Create a checkout, open the pay link, see the merchant page with the item and to
 
 - Contract: done.
 - Server match route and checkout totals: done, run against live Shop (5 objects matched in 0.6 s; a two-merchant checkout in 1.0 s returned store names, totals and legal links).
-- Cart hook and panel: written, type-check and Biome pass, dev server compiles them. Not yet seen in a browser.
+- Cart hook, panel and cart page: written, type-check and Biome pass. Used from the studio in a browser (checkouts created for 1 and for 4 stores).
+- Asset library (`apps/server/library.mjs`): a model the agent builds is saved to `packages/catalog/generated/<name>.build.js` and reused for the same name with no model call.
 - Known limits: catalog objects match loosely (nearest real sofa, not the same design); a generated object whose name finds nothing shows "no listing found".
-- Tested in the browser by a person: not yet.
+- Nobody has paid on a merchant page yet (a payment is a real order).
